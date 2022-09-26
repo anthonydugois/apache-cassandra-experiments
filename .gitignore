@@ -1,0 +1,11 @@
+results
+
+# Python
+venv
+__pycache__
+
+# Jupyter
+.ipynb_checkpoints
+
+# JetBrains
+.idea
