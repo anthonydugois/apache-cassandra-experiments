@@ -1,5 +1,8 @@
 results
 
+# EnOSlib
+cachedir
+
 # Python
 venv
 __pycache__

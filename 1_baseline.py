@@ -1,11 +1,16 @@
 import logging
 import pathlib
 import time
+import sys
 import enoslib as en
+import enoslib.config as en_conf
 
 from drivers.Resources import Resources
 from drivers.Cassandra import Cassandra
 from drivers.NoSQLBench import NoSQLBench, RunCommand
+
+en_conf.set_config(g5k_cache=False, ansible_stdout="noop")
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 
 def run_xp(site: str, cluster: str, settings: dict, host_count: int, client_count: int):
@@ -101,7 +106,6 @@ if __name__ == "__main__":
     SETTINGS = dict(
         job_name="cassandra",
         job_type="allow_classic_ssh",
-        reservation="2022-09-26 15:00:00",
         walltime="1:00:00"
     )
 
