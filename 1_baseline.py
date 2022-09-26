@@ -100,7 +100,8 @@ if __name__ == "__main__":
 
     SETTINGS = dict(
         job_name="cassandra",
-        reservation="2022-09-26 15:00",
+        job_type="allow_classic_ssh",
+        reservation="2022-09-26 15:00:00",
         walltime="1:00:00"
     )
 
