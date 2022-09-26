@@ -86,7 +86,7 @@ class NoSQLBench:
                  remote_root_path="/root/nosqlbench",
                  remote_container_conf_path="/etc/nosqlbench",
                  remote_container_data_path="/var/lib/nosqlbench",
-                 local_root_path="templates/nb"):
+                 local_root_path="nosqlbench"):
         self.name = name
         self.docker_image = docker_image
 

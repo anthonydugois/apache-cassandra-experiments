@@ -164,7 +164,7 @@ class Cassandra:
         logging.info("Cassandra is running!")
 
     def cleanup(self):
-        shutil.rmtree(self.local_global_root_path)
+        shutil.rmtree("tmp")
 
     def deploy_and_start(self, cleanup=True):
         """
