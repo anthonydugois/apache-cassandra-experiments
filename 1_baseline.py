@@ -1,13 +1,17 @@
 import logging
+import pathlib
 import time
 import enoslib as en
 
-from xp.drivers.Resources import Resources
-from xp.drivers.Cassandra import Cassandra
-from xp.drivers.NoSQLBench import NoSQLBench, RunCommand
+from drivers.Resources import Resources
+from drivers.Cassandra import Cassandra
+from drivers.NoSQLBench import NoSQLBench, RunCommand
 
 
 def run_xp(site: str, cluster: str, settings: dict, host_count: int, client_count: int):
+    keycount = 100000
+    opcount = 10000
+
     resources = Resources(site=site, cluster=cluster, settings=settings)
 
     resources.add_machines(["hosts", "cassandra"], host_count)
@@ -44,7 +48,7 @@ def run_xp(site: str, cluster: str, settings: dict, host_count: int, client_coun
                                        workload=f"{nb.remote_container_conf_path}/workloads/baseline",
                                        tags="block:schema",
                                        threads=1,
-                                       rf=1,
+                                       rf=3,
                                        host=cassandra.hosts[0].address,
                                        localdc="datacenter1"))
 
@@ -52,25 +56,24 @@ def run_xp(site: str, cluster: str, settings: dict, host_count: int, client_coun
                                        workload=f"{nb.remote_container_conf_path}/workloads/baseline",
                                        tags="block:rampup",
                                        threads="auto",
-                                       cycles=100000000,
+                                       cycles=keycount,
                                        cyclerate=50000,
-                                       keycount=100000000,
+                                       keycount=keycount,
                                        host=cassandra.hosts[0].address,
                                        localdc="datacenter1"))
 
     logging.info(cassandra.nodetool("tablestats baselines.keyvalue"))
     logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
 
-    with en.Dstat(nodes=nb.hosts, options="-aT") as dstat:
+    with en.Dstat(nodes=nb.hosts, options="-aT", backup_dir=pathlib.Path("./results/1_baseline/dstat")) as dstat:
         time.sleep(5)
 
         nb.command(RunCommand.from_options(driver="cqld4",
                                            workload=f"{nb.remote_container_conf_path}/workloads/baseline",
                                            tags="block:main-read",
                                            threads="auto",
-                                           cycles=10000000,
-                                           cyclerate=11129,
-                                           keycount=100000000,
+                                           cycles=opcount,
+                                           keycount=keycount,
                                            host=cassandra.hosts[0].address,
                                            localdc="datacenter1")
                    .logs_dir(nb.remote_container_data_path)
@@ -88,7 +91,7 @@ def run_xp(site: str, cluster: str, settings: dict, host_count: int, client_coun
 
     cassandra.destroy()
 
-    resources.destroy()
+    # resources.destroy()
 
 
 if __name__ == "__main__":

@@ -123,7 +123,8 @@ class NoSQLBench:
         logging.info("NoSQLBench has been deployed. Ready to benchmark.")
 
     def destroy(self):
-        pass
+        with en.actions(roles=self.hosts) as actions:
+            actions.file(path=self.remote_root_path, state="absent")
 
     def command(self, cmd, hosts=None):
         if isinstance(cmd, Command):

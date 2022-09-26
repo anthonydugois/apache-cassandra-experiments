@@ -179,7 +179,9 @@ class Cassandra:
             self.cleanup()
 
     def destroy(self):
-        pass
+        with en.actions(roles=self.hosts) as actions:
+            actions.docker_container(name=self.name, state="absent")
+            actions.file(path="{{remote_root_path}}", state="absent")
 
     def nodetool(self, command="status"):
         with en.actions(roles=self.hosts[0]) as actions:
