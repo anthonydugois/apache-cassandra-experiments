@@ -183,6 +183,14 @@ class Cassandra:
             actions.docker_container(name=self.name, state="absent")
             actions.file(path="{{remote_root_path}}", state="absent")
 
+    def logs(self):
+        with en.actions(roles=self.hosts[0]) as actions:
+            actions.shell(cmd=f"docker logs {self.name}")
+            
+            results = actions.results
+
+        return results[0].payload["stdout"]
+
     def nodetool(self, command="status"):
         with en.actions(roles=self.hosts[0]) as actions:
             actions.shell(cmd=f"docker exec {self.name} nodetool {command}")

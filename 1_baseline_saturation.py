@@ -2,7 +2,6 @@ import logging
 import pathlib
 import time
 import sys
-import argparse
 import enoslib as en
 import enoslib.config as en_conf
 
@@ -54,14 +53,14 @@ def run_xp(site: str, cluster: str, settings: dict, host_count: int, client_coun
         nb.deploy()
         
         host_address = cassandra.hosts[0].address
-        keycount = 35000000
+        keycount = 120000000
         opcount = 10000000
 
         nb.command(RunCommand.from_options(driver="cqld4",
                                            workload=f"{nb.remote_container_conf_path}/workloads/baseline",
                                            tags="block:schema",
                                            threads=1,
-                                           rf=3,
+                                           rf=min(3, host_count),
                                            host=host_address,
                                            localdc="datacenter1"))
 
@@ -99,6 +98,9 @@ def run_xp(site: str, cluster: str, settings: dict, host_count: int, client_coun
             time.sleep(5)
 
         nb.sync_results(f"./results/1_baseline_saturation/{kind}")
+        
+        with open(f"results/1_baseline_saturation/{kind}/cassandra.log", "w") as log_file:
+            log_file.write(cassandra.logs())
 
         nb.destroy()
 
@@ -108,13 +110,18 @@ def run_xp(site: str, cluster: str, settings: dict, host_count: int, client_coun
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    import datetime
+    import argparse
     
+    now = datetime.datetime.now() + datetime.timedelta(minutes=1)
+
+    parser = argparse.ArgumentParser()
+
     parser.add_argument("--job-name", type=str, default="cassandra")
     parser.add_argument("--site", type=str, default="nancy")
     parser.add_argument("--cluster", type=str, default="gros")
     parser.add_argument("--env-name", type=str, default="debian11-x64-min")
-    parser.add_argument("--reservation", type=str, default="now")
+    parser.add_argument("--reservation", type=str, default=now.strftime("%Y-%m-%d %H:%M:%S"))
     parser.add_argument("--walltime", type=str, default="00:30:00")
     parser.add_argument("--hosts", type=int)
     parser.add_argument("--clients", type=int)
