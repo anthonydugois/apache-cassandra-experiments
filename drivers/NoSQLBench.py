@@ -1,3 +1,5 @@
+from typing import Optional, Union
+
 import logging
 import pathlib
 import enoslib as en
@@ -79,23 +81,21 @@ class RunCommand(Command):
         return RunCommand().options(**kwargs)
 
 
+class MissingHostsException(Exception):
+    pass
+
+
 class NoSQLBench:
-    def __init__(self, name: str, docker_image: str,
-                 conf_dir="conf",
-                 data_dir="data",
-                 remote_root_path="/root/nosqlbench",
-                 remote_container_conf_path="/etc/nosqlbench",
-                 remote_container_data_path="/var/lib/nosqlbench",
-                 local_root_path="nosqlbench"):
+    def __init__(self, name: str, docker_image: str, workloads: Union[str, pathlib.Path]):
         self.name = name
         self.docker_image = docker_image
+        self.workloads = workloads
 
-        self.remote_root_path = remote_root_path
-        self.remote_conf_path = f"{remote_root_path}/{conf_dir}"
-        self.remote_data_path = f"{remote_root_path}/{data_dir}"
-        self.remote_container_conf_path = remote_container_conf_path
-        self.remote_container_data_path = remote_container_data_path
-        self.local_root_path = local_root_path
+        self.remote_root_path = "/root/nosqlbench"
+        self.remote_conf_path = f"{self.remote_root_path}/conf"
+        self.remote_data_path = f"{self.remote_root_path}/data"
+        self.remote_container_conf_path = "/etc/nosqlbench"
+        self.remote_container_data_path = "/var/lib/nosqlbench"
 
         self.hosts = None
 
@@ -106,18 +106,20 @@ class NoSQLBench:
     def set_hosts(self, hosts: list[en.Host]):
         self.hosts = hosts
 
+    def init(self, hosts: list[en.Host]):
+        if len(hosts) <= 0:
+            raise MissingHostsException
+
+        self.set_hosts(hosts)
+
     def deploy(self):
         with en.actions(roles=self.hosts) as actions:
-            # Create root directory on remote
             actions.file(path=self.remote_root_path, state="directory")
+            actions.file(path=self.remote_conf_path, state="directory")
+            actions.file(path=self.remote_data_path, state="directory")
 
-            # Transfer file tree in root directory on remote.
-            # Note: make sure to leave the ending / in src, as we want Ansible
-            # to only copy inside contents of the template directory (and not
-            # the template directory itself).
-            actions.copy(src=f"{self.local_root_path}/", dest=self.remote_root_path)
+            actions.copy(src=str(self.workloads), dest=self.remote_conf_path)
 
-            # Pull Docker image
             actions.docker_image(name=self.docker_image, source="pull")
 
         logging.info("NoSQLBench has been deployed. Ready to benchmark.")
@@ -126,7 +128,7 @@ class NoSQLBench:
         with en.actions(roles=self.hosts) as actions:
             actions.file(path=self.remote_root_path, state="absent")
 
-    def command(self, cmd, hosts=None):
+    def command(self, cmd: Union[str, Command], hosts: Optional[list[en.Host]] = None):
         if isinstance(cmd, Command):
             cmd = str(cmd)
 
@@ -155,12 +157,19 @@ class NoSQLBench:
                                      command=cmd,
                                      auto_remove="yes")
 
-    def sync_results(self, dest, hosts=None):
+    def workload(self, name: str):
+        workload_dir = pathlib.Path(self.workloads).name
+        return f"{self.remote_container_conf_path}/{workload_dir}/{name}"
+
+    def data(self, path=""):
+        return f"{self.remote_container_data_path}{path}"
+
+    def sync_results(self, local_dest: Union[str, pathlib.Path], hosts: Optional[list[en.Host]] = None):
         # Ensure destination folder exists
-        pathlib.Path(dest).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(local_dest).mkdir(parents=True, exist_ok=True)
 
         if hosts is None:
             hosts = self.hosts
 
         with en.actions(roles=hosts) as actions:
-            actions.synchronize(src=self.remote_data_path, dest=dest, mode="pull")
+            actions.synchronize(src=self.remote_data_path, dest=str(local_dest), mode="pull")

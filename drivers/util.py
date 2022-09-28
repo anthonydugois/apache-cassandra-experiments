@@ -1,5 +1,6 @@
 from typing import Union
 
+import pathlib
 import yaml
 
 
@@ -15,7 +16,7 @@ def update_dict_from_spec(data: Union[dict, list], update_spec: dict):
             data[key] = update_spec[key]
 
 
-def build_yaml(template_path: str, output_path: str, update_spec: dict):
+def build_yaml(template_path: Union[str, pathlib.Path], output_path: Union[str, pathlib.Path], update_spec: dict):
     """
     Load a YAML template file, update some properties, and write the result
     to a new YAML file.
@@ -59,10 +60,10 @@ def build_yaml(template_path: str, output_path: str, update_spec: dict):
     Note that the other property `bar` has not been modified.
     """
 
-    with open(template_path, mode="r") as template_file:
+    with pathlib.Path(template_path).open("r") as template_file:
         data = yaml.safe_load(template_file)
 
     update_dict_from_spec(data, update_spec)
 
-    with open(output_path, mode="w+") as output_file:
+    with pathlib.Path(output_path).open("w") as output_file:
         yaml.dump(data, output_file)

@@ -11,7 +11,7 @@ class UndefinedProviderException(Exception):
 
 
 class Resources:
-    def __init__(self, site: str, cluster: str, settings: dict, docker_registry=None):
+    def __init__(self, site: str, cluster: str, settings: dict, docker_registry: Optional[dict] = None):
         if docker_registry is None:
             docker_registry = DEFAULT_DOCKER_REGISTRY
 
@@ -28,13 +28,11 @@ class Resources:
         self.networks: Optional[en.Networks] = None
         self.role_counts: dict[str, int] = {}
 
-    def add_machines(self, roles, node_count, cluster=None):
+    def add_machines(self, roles: list[str], node_count: int, cluster: Optional[str] = None):
         if cluster is None:
             cluster = self.cluster
 
-        self.conf = self.conf.add_machine(roles=roles,
-                                          cluster=cluster,
-                                          nodes=node_count,
+        self.conf = self.conf.add_machine(roles=roles, cluster=cluster, nodes=node_count,
                                           primary_network=self.network_conf)
 
         for role in roles:
@@ -43,7 +41,7 @@ class Resources:
             else:
                 self.role_counts[role] = node_count
 
-    def count(self, role):
+    def count(self, role: str):
         if role in self.role_counts:
             return self.role_counts[role]
 
@@ -56,8 +54,7 @@ class Resources:
         if with_docker is not None:
             logging.info("Installing Docker...")
 
-            docker = en.Docker(agent=self.roles[with_docker],
-                               bind_var_docker="/tmp/docker",
+            docker = en.Docker(agent=self.roles[with_docker], bind_var_docker="/tmp/docker",
                                registry_opts=self.docker_registry)
 
             docker.deploy()
