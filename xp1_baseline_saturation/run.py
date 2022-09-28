@@ -44,7 +44,7 @@ def run(site: str, cluster: str, settings: dict, host_count: int, client_count: 
     resources.add_machines(["hosts", "cassandra"], host_count)
     resources.add_machines(["hosts", "clients"], client_count)
 
-    resources.get(with_docker="hosts")
+    resources.acquire(with_docker="hosts")
 
     for version in versions:
         logging.info(f"Running scenario on version {version}...")
@@ -118,7 +118,7 @@ def run(site: str, cluster: str, settings: dict, host_count: int, client_count: 
         cassandra.destroy()
 
     # Release resources
-    resources.destroy()
+    resources.release()
 
 
 if __name__ == "__main__":

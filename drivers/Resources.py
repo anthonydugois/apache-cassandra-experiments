@@ -47,7 +47,7 @@ class Resources:
 
         return 0
 
-    def get(self, with_docker: Optional[str] = None):
+    def acquire(self, with_docker: Optional[str] = None):
         self.provider = en.G5k(self.conf.finalize())
         self.roles, self.networks = self.provider.init()
 
@@ -64,7 +64,7 @@ class Resources:
 
         return self.roles, self.networks
 
-    def destroy(self):
+    def release(self):
         if self.provider is None:
             raise UndefinedProviderException
 

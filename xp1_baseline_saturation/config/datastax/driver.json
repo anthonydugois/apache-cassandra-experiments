@@ -1,0 +1,4 @@
+{
+  "basic.load-balancing-policy.slow-replica-avoidance": false,
+  "advanced.protocol.version": "V5"
+}
