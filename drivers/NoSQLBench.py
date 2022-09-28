@@ -86,10 +86,12 @@ class MissingHostsException(Exception):
 
 
 class NoSQLBench:
-    def __init__(self, name: str, docker_image: str, workloads: Union[str, pathlib.Path]):
+    def __init__(self, name: str, docker_image: str, driver_path: Union[str, pathlib.Path],
+                 workload_path: Union[str, pathlib.Path]):
         self.name = name
         self.docker_image = docker_image
-        self.workloads = workloads
+        self.driver_path = driver_path
+        self.workload_path = workload_path
 
         self.remote_root_path = "/root/nosqlbench"
         self.remote_conf_path = f"{self.remote_root_path}/conf"
@@ -118,7 +120,8 @@ class NoSQLBench:
             actions.file(path=self.remote_conf_path, state="directory")
             actions.file(path=self.remote_data_path, state="directory")
 
-            actions.copy(src=str(self.workloads), dest=self.remote_conf_path)
+            actions.copy(src=str(self.driver_path), dest=self.remote_conf_path)
+            actions.copy(src=str(self.workload_path), dest=self.remote_conf_path)
 
             actions.docker_image(name=self.docker_image, source="pull")
 
@@ -157,19 +160,23 @@ class NoSQLBench:
                                      command=cmd,
                                      auto_remove="yes")
 
+    def driver(self, name: str):
+        driver_dir = pathlib.Path(self.driver_path).name
+        return f"{self.remote_container_conf_path}/{driver_dir}/{name}"
+
     def workload(self, name: str):
-        workload_dir = pathlib.Path(self.workloads).name
+        workload_dir = pathlib.Path(self.workload_path).name
         return f"{self.remote_container_conf_path}/{workload_dir}/{name}"
 
     def data(self, path=""):
         return f"{self.remote_container_data_path}{path}"
 
     def sync_results(self, local_dest: Union[str, pathlib.Path], hosts: Optional[list[en.Host]] = None):
-        # Ensure destination folder exists
-        pathlib.Path(local_dest).mkdir(parents=True, exist_ok=True)
-
         if hosts is None:
             hosts = self.hosts
+
+        # Ensure destination folder exists
+        pathlib.Path(local_dest).mkdir(parents=True, exist_ok=True)
 
         with en.actions(roles=hosts) as actions:
             actions.synchronize(src=self.remote_data_path, dest=str(local_dest), mode="pull")

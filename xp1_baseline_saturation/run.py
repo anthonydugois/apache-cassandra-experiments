@@ -17,13 +17,11 @@ RESULTS = ROOT / "results"
 CASSANDRA_VERSIONS = {
     "4.2-base": {
         "docker_image": "adugois1/apache-cassandra-base:latest",
-        "config_file": CONFIG / "cassandra/cassandra-base.yaml",
-        "driver_file": CONFIG / "datastax/driver.json"
+        "config_file": CONFIG / "cassandra/cassandra-base.yaml"
     },
     "4.2-se": {
         "docker_image": "adugois1/apache-cassandra-se:latest",
-        "config_file": CONFIG / "cassandra/cassandra-se.yaml",
-        "driver_file": CONFIG / "datastax/driver.json"
+        "config_file": CONFIG / "cassandra/cassandra-se.yaml"
     }
 }
 
@@ -64,7 +62,8 @@ def run(site: str, cluster: str, settings: dict, host_count: int, client_count: 
         # Deploy NoSQLBench
         nb = NoSQLBench(name="nb",
                         docker_image="nosqlbench/nosqlbench:nb5preview",
-                        workloads=ROOT / "workloads")
+                        driver_path=CONFIG / "driver",
+                        workload_path=ROOT / "workloads")
 
         nb.init(resources.roles["clients"])
 
@@ -72,14 +71,14 @@ def run(site: str, cluster: str, settings: dict, host_count: int, client_count: 
 
         # Create schema
         schema_cmd = RunCommand.from_options(driver="cqld4", workload=nb.workload("main"), tags="block:schema",
-                                             driverconfig=versions[version]["driver_file"], threads=1, rf=rf,
+                                             driverconfig=nb.driver("main.json"), threads=1, rf=rf,
                                              host=cassandra.get_host_address(0), localdc="datacenter1")
 
         nb.command(schema_cmd)
 
         # Insert data
         rampup_cmd = RunCommand.from_options(driver="cqld4", workload=nb.workload("main"), tags="block:rampup",
-                                             driverconfig=versions[version]["driver_file"], threads="auto",
+                                             driverconfig=nb.driver("main.json"), threads="auto",
                                              cycles=key_count, cyclerate=50000, keycount=key_count,
                                              valuesize=value_size_in_bytes, host=cassandra.get_host_address(0),
                                              localdc="datacenter1")
@@ -92,7 +91,7 @@ def run(site: str, cluster: str, settings: dict, host_count: int, client_count: 
         # Main experiment
         main_cmd = (
             RunCommand.from_options(driver="cqld4", workload=nb.workload("main"), tags="block:main-read",
-                                    driverconfig=versions[version]["driver_file"], threads="auto", cycles=op_count,
+                                    driverconfig=nb.driver("main.json"), threads="auto", cycles=op_count,
                                     keycount=key_count, host=cassandra.get_host_address(0), localdc="datacenter1")
             .logs_dir(nb.data())
             .log_histograms(nb.data(f"/histograms.csv:{histogram_filter}"))
