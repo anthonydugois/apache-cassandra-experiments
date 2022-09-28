@@ -122,7 +122,6 @@ def run(site: str, cluster: str, settings: dict, host_count: int, client_count: 
 
 
 if __name__ == "__main__":
-    import datetime
     import argparse
 
     from sys import stdout
@@ -131,15 +130,13 @@ if __name__ == "__main__":
     set_config(ansible_stdout="noop")
     logging.basicConfig(stream=stdout, level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-    DEFAULT_RESERVATION = datetime.datetime.now() + datetime.timedelta(minutes=1)
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--job-name", type=str, default="cassandra")
     parser.add_argument("--site", type=str, default="nancy")
     parser.add_argument("--cluster", type=str, default="gros")
     parser.add_argument("--env-name", type=str, default="debian11-x64-min")
-    parser.add_argument("--reservation", type=str, default=DEFAULT_RESERVATION.strftime("%Y-%m-%d %H:%M:%S"))
+    parser.add_argument("--reservation", type=str, default=None)
     parser.add_argument("--walltime", type=str, default="00:30:00")
     parser.add_argument("--value-size", type=int, default=1000)
     parser.add_argument("--bytes-per-host", type=int, default=100e9)
@@ -152,9 +149,11 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    run(site=args.site, cluster=args.cluster,
-        settings=dict(job_name=args.job_name, env_name=args.env_name, reservation=args.reservation,
-                      walltime=args.walltime),
-        host_count=args.hosts, client_count=args.clients, op_count=args.ops,
-        value_size_in_bytes=args.value_size, bytes_per_host=args.bytes_per_host, rf=args.rf,
+    settings = dict(job_name=args.job_name, env_name=args.env_name, walltime=args.walltime)
+
+    if args.reservation is not None:
+        settings["reservation"] = args.reservation
+
+    run(site=args.site, cluster=args.cluster, settings=settings, host_count=args.hosts, client_count=args.clients,
+        op_count=args.ops, value_size_in_bytes=args.value_size, bytes_per_host=args.bytes_per_host, rf=args.rf,
         report_interval=args.report_interval, histogram_filter=args.histogram_filter)
