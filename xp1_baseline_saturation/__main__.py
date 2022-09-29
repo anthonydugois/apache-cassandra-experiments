@@ -1,3 +1,2 @@
-from xp1_baseline_saturation.run import run
-
-run()
+if __name__ == "__main__":
+    pass

@@ -3,6 +3,7 @@ from typing import Optional
 import logging
 import pathlib
 import time
+import tarfile
 import enoslib as en
 import pandas as pd
 
@@ -173,6 +174,10 @@ def run(site: str,
 
     # Release resources
     resources.release()
+
+    # Compress raw results
+    with tarfile.open(ROOT / "results" / "raw.tar.gz", mode="w:gz") as archive_file:
+        archive_file.add(RAW_RESULTS, arcname=RAW_RESULTS.name)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import pathlib
+import tarfile
 import pandas as pd
 
 from hdrh.histogram import HdrHistogram
@@ -75,6 +76,10 @@ def post():
     pd.concat(dstat_df).to_csv(RESULTS / "dstat.csv", index=False)
     pd.concat(timeseries_df).to_csv(RESULTS / "timeseries.csv", index=False)
     pd.concat(latency_df).to_csv(RESULTS / "latency.csv", index=False)
+
+    # Compress results
+    with tarfile.open(ROOT / "results" / "tidy.tar.gz", mode="w:gz") as archive_file:
+        archive_file.add(RESULTS, arcname=RESULTS.name)
 
 
 if __name__ == "__main__":
