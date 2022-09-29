@@ -61,11 +61,11 @@ def run(site: str,
     resources.acquire(with_docker="hosts")
 
     for version in versions:
-        logging.info(f"Running scenario on version {version}...")
-
         saturating_throughput = 0
 
         for throughput in throughputs:
+            logging.info(f"Running scenario on version {version} with throughput {throughput}...")
+
             result_path = RAW_RESULTS / version / f"{throughput}-throughput"
 
             # Deploy and start Cassandra
