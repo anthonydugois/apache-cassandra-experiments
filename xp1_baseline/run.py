@@ -187,7 +187,7 @@ if __name__ == "__main__":
     from enoslib.config import set_config
 
     set_config(ansible_stdout="noop")
-    logging.basicConfig(stream=stdout, level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.basicConfig(stream=stdout, level=logging.INFO, format="%(asctime)s %(levelname)s : %(message)s")
 
     parser = argparse.ArgumentParser()
 

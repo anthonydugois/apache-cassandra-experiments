@@ -60,7 +60,7 @@ class Resources:
             docker.deploy()
 
             for role in self.roles[with_docker]:
-                logging.info(f"Docker host {role.address} is ready.")
+                logging.info(f"[{role.address}] Docker host is ready.")
 
         return self.roles, self.networks
 
