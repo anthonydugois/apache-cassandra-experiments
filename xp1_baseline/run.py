@@ -40,7 +40,7 @@ def run(site: str,
         bytes_per_host=100e9,
         rf=3,
         report_interval=30,
-        histogram_filter=".*result-success:30s",
+        histogram_filter=".*result:30s",
         versions: Optional[dict] = None,
         throughputs: Optional[list[float]] = None):
     rf = min(rf, host_count)
