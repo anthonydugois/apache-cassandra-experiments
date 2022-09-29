@@ -26,7 +26,7 @@ blocks:
           );
   rampup:
     params:
-      cl: LOCAL_QUORUM
+      cl: LOCAL_ONE
     ops:
       rampup-insert:
         prepared: |

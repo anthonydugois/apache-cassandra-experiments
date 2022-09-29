@@ -142,6 +142,12 @@ class Cassandra:
                                              "target": "{{remote_container_conf_path}}/cassandra.yaml",
                                              "type": "bind"
                                          }
+                                     ],
+                                     ulimits=[
+                                         "memlock:-1:-1",
+                                         "nofile:100000:100000",
+                                         "nproc:32768:32768",
+                                         "as:-1:-1"
                                      ])
 
         logging.info("Cassandra has been deployed. Ready to start.")
