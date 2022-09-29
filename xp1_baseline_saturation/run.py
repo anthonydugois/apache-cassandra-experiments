@@ -4,6 +4,7 @@ import logging
 import pathlib
 import time
 import enoslib as en
+import pandas as pd
 
 from drivers.Resources import Resources
 from drivers.Cassandra import Cassandra
@@ -12,9 +13,9 @@ from drivers.NoSQLBench import NoSQLBench, RunCommand
 ROOT = pathlib.Path(__file__).parent
 
 CONFIG = ROOT / "config"
-RESULTS = ROOT / "results"
+RAW_RESULTS = ROOT / "results" / "raw"
 
-CASSANDRA_VERSIONS = {
+DEFAULT_VERSIONS = {
     "4.2-base": {
         "docker_image": "adugois1/apache-cassandra-base:latest",
         "config_file": CONFIG / "cassandra/cassandra-base.yaml"
@@ -25,16 +26,30 @@ CASSANDRA_VERSIONS = {
     }
 }
 
+DEFAULT_THROUGHPUTS = [1, 0.9, 0.8, 0.7, 0.6]
 
-def run(site: str, cluster: str, settings: dict, host_count: int, client_count: int, op_count: int,
-        value_size_in_bytes=1000, bytes_per_host=100e9, rf=3, report_interval=30,
-        histogram_filter=".*result-success:30s", versions: Optional[dict] = None):
+
+def run(site: str,
+        cluster: str,
+        settings: dict,
+        host_count: int,
+        client_count: int,
+        op_count: int,
+        value_size_in_bytes=1000,
+        bytes_per_host=100e9,
+        rf=3,
+        report_interval=30,
+        histogram_filter=".*result-success:30s",
+        versions: Optional[dict] = None,
+        throughputs: Optional[list[float]] = None):
     rf = min(rf, host_count)
     bytes_total = host_count * bytes_per_host / rf
     key_count = round(bytes_total / value_size_in_bytes)
 
     if versions is None:
-        versions = CASSANDRA_VERSIONS
+        versions = DEFAULT_VERSIONS
+    if throughputs is None:
+        throughputs = DEFAULT_THROUGHPUTS
 
     # Acquire G5k resources
     resources = Resources(site=site, cluster=cluster, settings=settings)
@@ -47,74 +62,114 @@ def run(site: str, cluster: str, settings: dict, host_count: int, client_count: 
     for version in versions:
         logging.info(f"Running scenario on version {version}...")
 
-        result_path = RESULTS / version
+        saturating_throughput = 0
 
-        # Deploy and start Cassandra
-        cassandra = Cassandra(name="cassandra", docker_image=versions[version]["docker_image"])
+        for throughput in throughputs:
+            result_path = RAW_RESULTS / version / f"{throughput}-throughput"
 
-        cassandra.init(resources.roles["cassandra"])
-        cassandra.create_config(versions[version]["config_file"])
+            # Deploy and start Cassandra
+            cassandra = Cassandra(name="cassandra", docker_image=versions[version]["docker_image"])
 
-        cassandra.deploy_and_start()
+            cassandra.init(resources.roles["cassandra"])
+            cassandra.create_config(versions[version]["config_file"])
 
-        logging.info(cassandra.nodetool("status"))
+            cassandra.deploy_and_start()
 
-        # Deploy NoSQLBench
-        nb = NoSQLBench(name="nb",
-                        docker_image="nosqlbench/nosqlbench:nb5preview",
-                        driver_path=CONFIG / "driver",
-                        workload_path=ROOT / "workloads")
+            logging.info(cassandra.nodetool("status"))
 
-        nb.init(resources.roles["clients"])
+            # Deploy NoSQLBench
+            nb = NoSQLBench(name="nb",
+                            docker_image="nosqlbench/nosqlbench:nb5preview",
+                            driver_path=CONFIG / "driver",
+                            workload_path=ROOT / "workloads")
 
-        nb.deploy()
+            nb.init(resources.roles["clients"])
 
-        # Create schema
-        schema_cmd = RunCommand.from_options(driver="cqld4", workload=nb.workload("main"), tags="block:schema",
-                                             driverconfig=nb.driver("main.json"), threads=1, rf=rf,
-                                             host=cassandra.get_host_address(0), localdc="datacenter1")
+            nb.deploy()
 
-        nb.command(schema_cmd)
+            # Create schema
+            schema_options = dict(driver="cqld4",
+                                  workload=nb.workload("main"),
+                                  alias="main",
+                                  tags="block:schema",
+                                  driverconfig=nb.driver("main.json"),
+                                  threads=1,
+                                  rf=rf,
+                                  host=cassandra.get_host_address(0),
+                                  localdc="datacenter1")
 
-        # Insert data
-        rampup_cmd = RunCommand.from_options(driver="cqld4", workload=nb.workload("main"), tags="block:rampup",
-                                             driverconfig=nb.driver("main.json"), threads="auto",
-                                             cycles=key_count, cyclerate=50000, keycount=key_count,
-                                             valuesize=value_size_in_bytes, host=cassandra.get_host_address(0),
-                                             localdc="datacenter1")
+            schema_cmd = RunCommand.from_options(**schema_options)
 
-        nb.command(rampup_cmd)
+            nb.command(schema_cmd)
 
-        logging.info(cassandra.nodetool("tablestats baselines.keyvalue"))
-        logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
+            # Insert data
+            rampup_options = dict(driver="cqld4",
+                                  workload=nb.workload("main"),
+                                  alias="main",
+                                  tags="block:rampup",
+                                  driverconfig=nb.driver("main.json"),
+                                  threads="auto",
+                                  cycles=key_count,
+                                  cyclerate=50000,
+                                  keycount=key_count,
+                                  valuesize=value_size_in_bytes,
+                                  host=cassandra.get_host_address(0),
+                                  localdc="datacenter1")
 
-        # Main experiment
-        main_cmd = (
-            RunCommand.from_options(driver="cqld4", workload=nb.workload("main"), tags="block:main-read",
-                                    driverconfig=nb.driver("main.json"), threads="auto", cycles=op_count,
-                                    keycount=key_count, host=cassandra.get_host_address(0), localdc="datacenter1")
-            .logs_dir(nb.data())
-            .log_histograms(nb.data(f"/histograms.csv:{histogram_filter}"))
-            .log_histostats(nb.data(f"/histostats.csv:{histogram_filter}"))
-            .report_summary_to(nb.data("/summary.txt"))
-            .report_csv_to(nb.data("/csv"))
-            .report_interval(report_interval)
-        )
+            rampup_cmd = RunCommand.from_options(**rampup_options)
 
-        with en.Dstat(nodes=nb.hosts, options="-aT", backup_dir=result_path / "dstat"):
-            time.sleep(5)
-            nb.command(main_cmd)
-            time.sleep(5)
+            nb.command(rampup_cmd)
 
-        # Get results
-        nb.sync_results(result_path)
+            logging.info(cassandra.nodetool("tablestats baselines.keyvalue"))
+            logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
 
-        with (result_path / "cassandra.log").open("w") as log_file:
-            log_file.write(cassandra.logs())
+            # Main experiment
+            main_options = dict(driver="cqld4",
+                                workload=nb.workload("main"),
+                                alias="main",
+                                tags="block:main-read",
+                                driverconfig=nb.driver("main.json"),
+                                threads="auto",
+                                cycles=op_count,
+                                keycount=key_count,
+                                host=cassandra.get_host_address(0),
+                                localdc="datacenter1")
 
-        # Destroy instances
-        nb.destroy()
-        cassandra.destroy()
+            if saturating_throughput > 0:
+                main_options["cyclerate"] = throughput * saturating_throughput
+
+            main_cmd = RunCommand \
+                .from_options(**main_options) \
+                .logs_dir(nb.data()) \
+                .log_histograms(nb.data(f"/histograms.csv:{histogram_filter}")) \
+                .log_histostats(nb.data(f"/histostats.csv:{histogram_filter}")) \
+                .report_summary_to(nb.data("/summary.txt")) \
+                .report_csv_to(nb.data("/csv")) \
+                .report_interval(report_interval)
+
+            with en.Dstat(nodes=nb.hosts, options="-aT", backup_dir=result_path / "dstat"):
+                time.sleep(5)
+                nb.command(main_cmd)
+                time.sleep(5)
+
+            # Get results
+            nb.sync_results(result_path)
+
+            with (result_path / "cassandra.log").open("w") as log_file:
+                log_file.write(cassandra.logs())
+
+            if throughput >= 1:
+                # Retrieve saturating throughput
+                result_df = pd.read_csv(result_path / "data" / "csv" / "main.result.csv", index_col=False)
+                saturating_throughput = result_df[result_df["count"] >= key_count].iloc[0]["mean_rate"]
+
+                logging.info(f"Saturating throughput currently set to {saturating_throughput}.")
+
+            # Destroy instances
+            logging.info("Destroying instances...")
+
+            nb.destroy()
+            cassandra.destroy()
 
     # Release resources
     resources.release()
@@ -153,6 +208,14 @@ if __name__ == "__main__":
     if args.reservation is not None:
         settings["reservation"] = args.reservation
 
-    run(site=args.site, cluster=args.cluster, settings=settings, host_count=args.hosts, client_count=args.clients,
-        op_count=args.ops, value_size_in_bytes=args.value_size, bytes_per_host=args.bytes_per_host, rf=args.rf,
-        report_interval=args.report_interval, histogram_filter=args.histogram_filter)
+    run(site=args.site,
+        cluster=args.cluster,
+        settings=settings,
+        host_count=args.hosts,
+        client_count=args.clients,
+        op_count=args.ops,
+        value_size_in_bytes=args.value_size,
+        bytes_per_host=args.bytes_per_host,
+        rf=args.rf,
+        report_interval=args.report_interval,
+        histogram_filter=args.histogram_filter)

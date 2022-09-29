@@ -151,14 +151,14 @@ class Cassandra:
         Run a Cassandra node. Make sure to wait at least 2 minutes in order to let Cassandra start properly.
         """
 
-        logging.info(f"Starting Cassandra on {host.address}...")
+        logging.info(f"[{host.address}] Starting Cassandra...")
 
         with en.actions(roles=host) as actions:
             actions.docker_container(name=self.name, state="started")
 
         time.sleep(spawn_time)
 
-        logging.info(f"Cassandra is up and running on host {host.address}.")
+        logging.info(f"[{host.address}] Cassandra is up and running.")
 
     def start(self):
         """

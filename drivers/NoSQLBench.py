@@ -138,7 +138,8 @@ class NoSQLBench:
         if hosts is None:
             hosts = self.hosts
 
-        logging.info(f"Running command: {cmd}.")
+        for host in hosts:
+            logging.info(f"[{host.address}] Running command `{cmd}`.")
 
         with en.actions(roles=hosts) as actions:
             actions.docker_container(name=self.name,
