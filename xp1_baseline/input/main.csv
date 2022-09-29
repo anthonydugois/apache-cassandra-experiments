@@ -1,0 +1,11 @@
+id,name,version,hosts,clients,ops,throughput,throughput_ref,rf,value_size_in_bytes,bytes_per_host
+1,4.2-base-1-throughput,4.2-base,1,1,10000,1,1,1,1000,100000000
+2,4.2-base-0.9-throughput,4.2-base,1,1,10000,0.9,1,1,1000,100000000
+3,4.2-base-0.8-throughput,4.2-base,1,1,10000,0.8,1,1,1000,100000000
+4,4.2-base-0.7-throughput,4.2-base,1,1,10000,0.7,1,1,1000,100000000
+5,4.2-base-0.6-throughput,4.2-base,1,1,10000,0.6,1,1,1000,100000000
+6,4.2-se-1-throughput,4.2-se,1,1,10000,1,6,1,1000,100000000
+7,4.2-se-0.9-throughput,4.2-se,1,1,10000,0.9,6,1,1000,100000000
+8,4.2-se-0.8-throughput,4.2-se,1,1,10000,0.8,6,1,1000,100000000
+9,4.2-se-0.7-throughput,4.2-se,1,1,10000,0.7,6,1,1000,100000000
+10,4.2-se-0.6-throughput,4.2-se,1,1,10000,0.6,6,1,1000,100000000
