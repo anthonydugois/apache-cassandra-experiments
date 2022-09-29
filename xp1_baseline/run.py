@@ -162,7 +162,7 @@ def run(site: str,
             if throughput >= 1:
                 # Retrieve saturating throughput
                 result_df = pd.read_csv(result_path / "data" / "csv" / "main.result.csv", index_col=False)
-                saturating_throughput = result_df[result_df["count"] >= key_count].iloc[0]["mean_rate"]
+                saturating_throughput = result_df[result_df["count"] >= op_count].iloc[0]["mean_rate"]
 
                 logging.info(f"Saturating throughput currently set to {saturating_throughput}.")
 
