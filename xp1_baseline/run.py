@@ -39,8 +39,10 @@ def run(site: str,
 
     _output_path = pathlib.Path(output_path)
 
-    max_hosts = rows["hosts"].max()
-    max_clients = rows["clients"].max()
+    # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64, which is not usable in
+    # the resource driver.
+    max_hosts = int(rows["hosts"].max())
+    max_clients = int(rows["clients"].max())
 
     # Acquire G5k resources
     resources = Resources(site=site, cluster=cluster, settings=settings)
