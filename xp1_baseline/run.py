@@ -182,8 +182,12 @@ def run(site: str,
         # Get results
         nb.sync_results(result_path)
 
-        with (result_path / "cassandra.log").open("w") as log_file:
-            log_file.write(cassandra.logs())
+        # Save logs
+        with (result_path / "cassandra.log").open("w") as file:
+            file.write(cassandra.logs())
+
+        # Save input parameters
+        parameters[parameters.index == _id].to_csv(result_path / "input.csv")
 
         # Destroy instances
         logging.info("Destroying instances...")
@@ -228,18 +232,25 @@ if __name__ == "__main__":
 
     parameters = pd.read_csv(args.input, index_col=0, dtype={"id": str, "throughput_ref": str})
 
-    from_index = 0
-    if args.from_id is not None:
-        from_index = parameters.index.get_loc(args.from_id)
+    if args.from_id is None and args.to_id is None:
+        if args.id is None:
+            rows = parameters
+        else:
+            rows = parameters[parameters.index.isin(args.id)]
+    else:
+        from_index = 0
+        if args.from_id is not None:
+            from_index = parameters.index.get_loc(args.from_id)
 
-    to_index = len(parameters.index)
-    if args.to_id is not None:
-        to_index = parameters.index.get_loc(args.to_id)
+        to_index = len(parameters.index)
+        if args.to_id is not None:
+            to_index = parameters.index.get_loc(args.to_id)
 
-    rows = parameters.iloc[from_index:to_index]
-    if args.id is not None:
-        add_rows = parameters[parameters.index.isin(args.id)]
-        rows = pd.concat([rows, add_rows]).reindex(parameters.index).dropna()
+        ids = list(parameters.index[from_index:to_index])
+        if args.id is not None:
+            ids.extend(args.id)
+
+        rows = parameters[parameters.index.isin(ids)]
 
     settings = dict(job_name=args.job_name, env_name=args.env_name, walltime=args.walltime)
 
