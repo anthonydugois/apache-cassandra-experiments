@@ -184,8 +184,8 @@ def run(site: str,
     resources.release()
 
     # Compress results
-    with tarfile.open(_output_path.parent / "raw.tar.gz", mode="w:gz") as archive_file:
-        archive_file.add(_output_path, arcname=_output_path.name)
+    with tarfile.open(_output_path.parent / "raw.tar.gz", mode="w:gz") as file:
+        file.add(_output_path, arcname=_output_path.name)
 
 
 if __name__ == "__main__":
