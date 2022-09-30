@@ -13,17 +13,6 @@ from drivers.NoSQLBench import NoSQLBench, RunCommand
 
 ROOT = pathlib.Path(__file__).parent
 
-DEFAULT_VERSIONS = {
-    "4.2-base": {
-        "docker_image": "adugois1/apache-cassandra-base:latest",
-        "config_file": ROOT / "config" / "cassandra" / "cassandra-base.yaml"
-    },
-    "4.2-se": {
-        "docker_image": "adugois1/apache-cassandra-se:latest",
-        "config_file": ROOT / "config" / "cassandra" / "cassandra-se.yaml"
-    }
-}
-
 
 def run(site: str,
         cluster: str,
@@ -32,11 +21,7 @@ def run(site: str,
         rows: pd.DataFrame,
         output_path: str,
         report_interval=30,
-        histogram_filter=".*result:30s",
-        versions: Optional[dict] = None):
-    if versions is None:
-        versions = DEFAULT_VERSIONS
-
+        histogram_filter=".*result:30s"):
     _output_path = pathlib.Path(output_path)
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64, which is not usable in
@@ -55,7 +40,6 @@ def run(site: str,
     # Run experiments
     for _id, row in rows.iterrows():
         _name = row["name"]
-        _version = row["version"]
         _hosts = row["hosts"]
         _clients = row["clients"]
         _ops = row["ops"]
@@ -64,6 +48,10 @@ def run(site: str,
         _rf = row["rf"]
         _value_size_in_bytes = row["value_size_in_bytes"]
         _bytes_per_host = row["bytes_per_host"]
+        _docker_image = row["docker_image"]
+        _config_file = row["config_file"]
+        _driver = row["driver"]
+        _workload = row["workload"]
 
         logging.info(f"Running {_name} (#{_id})...")
 
@@ -85,7 +73,7 @@ def run(site: str,
 
                 if ref_path.exists():
                     # Retrieve saturating throughput
-                    ref_df = pd.read_csv(ref_path / "data" / "csv" / "main.result.csv", index_col=False)
+                    ref_df = pd.read_csv(ref_path / "data" / "csv" / f"{ROOT.name}.result.csv", index_col=False)
                     sat_throughput = ref_df[ref_df["count"] >= ref_row["ops"]].iloc[0]["mean_rate"]
 
                     logging.info(f"Saturating throughput currently set to {sat_throughput}.")
@@ -94,13 +82,10 @@ def run(site: str,
                                     "Could not infer saturating throughput.")
 
         # Deploy and start Cassandra
-        cassandra_docker_image = versions[_version]["docker_image"]
-        cassandra_config_file = versions[_version]["config_file"]
-
-        cassandra = Cassandra(name="cassandra", docker_image=cassandra_docker_image)
+        cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
 
         cassandra.init(resources.roles["cassandra"][:_hosts])
-        cassandra.create_config(cassandra_config_file)
+        cassandra.create_config(ROOT / _config_file)
         cassandra.deploy_and_start()
 
         logging.info(cassandra.nodetool("status"))
@@ -116,10 +101,10 @@ def run(site: str,
 
         # Create schema
         schema_options = dict(driver="cqld4",
-                              workload=nb.workload("main"),
-                              alias="main",
+                              workload=nb.workload(_workload),
+                              alias=ROOT.name,
                               tags="block:schema",
-                              driverconfig=nb.driver("main.json"),
+                              driverconfig=nb.driver(_driver),
                               threads=1,
                               rf=rf,
                               host=cassandra.get_host_address(0),
@@ -131,10 +116,10 @@ def run(site: str,
 
         # Insert data
         rampup_options = dict(driver="cqld4",
-                              workload=nb.workload("main"),
-                              alias="main",
+                              workload=nb.workload(_workload),
+                              alias=ROOT.name,
                               tags="block:rampup",
-                              driverconfig=nb.driver("main.json"),
+                              driverconfig=nb.driver(_driver),
                               threads="auto",
                               cycles=key_count,
                               cyclerate=50000,
@@ -152,10 +137,10 @@ def run(site: str,
 
         # Main experiment
         main_options = dict(driver="cqld4",
-                            workload=nb.workload("main"),
-                            alias="main",
+                            workload=nb.workload(_workload),
+                            alias=ROOT.name,
                             tags="block:main-read",
-                            driverconfig=nb.driver("main.json"),
+                            driverconfig=nb.driver(_driver),
                             threads="auto",
                             cycles=_ops,
                             keycount=key_count,
