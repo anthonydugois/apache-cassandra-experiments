@@ -113,7 +113,7 @@ def run(site: str,
 
         schema_cmd = RunCommand.from_options(**schema_options)
 
-        nb.command(schema_cmd)
+        nb.command(schema_cmd, name="nb-schema")
 
         # Insert data
         rampup_options = dict(driver="cqld4",
@@ -131,7 +131,7 @@ def run(site: str,
 
         rampup_cmd = RunCommand.from_options(**rampup_options)
 
-        nb.command(rampup_cmd)
+        nb.command(rampup_cmd, name="nb-rampup")
 
         logging.info(cassandra.nodetool("tablestats baselines.keyvalue"))
         logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
@@ -162,7 +162,7 @@ def run(site: str,
 
         with en.Dstat(nodes=nb.hosts, options="-aT", backup_dir=result_path / "dstat"):
             time.sleep(5)
-            nb.command(main_cmd)
+            nb.command(main_cmd, name="nb-main")
             time.sleep(5)
 
         # Get results

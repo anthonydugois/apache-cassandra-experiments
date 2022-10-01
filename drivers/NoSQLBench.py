@@ -131,18 +131,21 @@ class NoSQLBench:
         with en.actions(roles=self.hosts) as actions:
             actions.file(path=self.remote_root_path, state="absent")
 
-    def command(self, cmd: Union[str, Command], hosts: Optional[list[en.Host]] = None):
+    def command(self, cmd: Union[str, Command], hosts: Optional[list[en.Host]] = None, name: Optional[str] = None):
         if isinstance(cmd, Command):
             cmd = str(cmd)
 
         if hosts is None:
             hosts = self.hosts
+            
+        if name is None:
+            name = self.name
 
         for host in hosts:
             logging.info(f"[{host.address}] Running command `{cmd}`.")
 
         with en.actions(roles=hosts) as actions:
-            actions.docker_container(name=self.name,
+            actions.docker_container(name=name,
                                      image=self.docker_image,
                                      detach="no",
                                      network_mode="host",
@@ -158,8 +161,7 @@ class NoSQLBench:
                                              "type": "bind"
                                          }
                                      ],
-                                     command=cmd,
-                                     auto_remove="yes")
+                                     command=cmd)
 
     def driver(self, name: str):
         driver_dir = pathlib.Path(self.driver_path).name
