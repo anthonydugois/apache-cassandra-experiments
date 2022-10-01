@@ -20,6 +20,7 @@ def run(site: str,
         parameters: pd.DataFrame,
         rows: pd.DataFrame,
         output_path: str,
+        rampup_rate=50000,
         report_interval=30,
         histogram_filter=".*result:30s"):
     _output_path = pathlib.Path(output_path)
@@ -122,7 +123,7 @@ def run(site: str,
                               driverconfig=nb.driver(_driver),
                               threads="auto",
                               cycles=key_count,
-                              cyclerate=50000,
+                              cyclerate=rampup_rate,
                               keycount=key_count,
                               valuesize=_value_size_in_bytes,
                               host=cassandra.get_host_address(0),
@@ -207,6 +208,7 @@ if __name__ == "__main__":
     parser.add_argument("--reservation", type=str, default=None)
     parser.add_argument("--walltime", type=str, default="00:30:00")
     parser.add_argument("--output", type=str, default=str(ROOT / "output" / "raw"))
+    parser.add_argument("--rampup-rate", type=int, default=50000)
     parser.add_argument("--report-interval", type=int, default=30)
     parser.add_argument("--histogram-filter", type=str, default=".*result:30s")
     parser.add_argument("--id", type=str, action="append", default=None)
@@ -248,5 +250,6 @@ if __name__ == "__main__":
         parameters=parameters,
         rows=rows,
         output_path=args.output,
+        rampup_rate=args.rampup_rate,
         report_interval=args.report_interval,
         histogram_filter=args.histogram_filter)
