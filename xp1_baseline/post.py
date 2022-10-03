@@ -1,3 +1,4 @@
+import logging
 import pathlib
 import shutil
 import tarfile
@@ -20,8 +21,13 @@ def post(input_file: str, result_path: str, output_path: str):
         row = pd.read_csv(row_path / "input.csv", index_col=False).iloc[0]
 
         _id = row["id"]
+        _name = row["name"]
+
+        logging.info(f"[{_name}#{_id}] Processing data in {row_path}...")
 
         # Process Dstat files
+        logging.info(f"[{_name}#{_id}] Tidying Dstat data...")
+
         dstat_dir = row_path / "dstat"
         dstat_files = list(dstat_dir.rglob("*-dstat.csv"))
 
@@ -32,6 +38,8 @@ def post(input_file: str, result_path: str, output_path: str):
             dstat_df.append(df)
 
         # Process timeseries
+        logging.info(f"[{_name}#{_id}] Tidying timeseries data...")
+
         result_file = row_path / "data" / "csv" / f"{ROOT.name}.result.csv"
 
         df = pd.read_csv(result_file, index_col=False)
@@ -46,6 +54,9 @@ def post(input_file: str, result_path: str, output_path: str):
         df.reset_index(drop=True, inplace=True)
 
         hists = df["Interval_Compressed_Histogram"]
+        hist_count = hists.size
+
+        logging.info(f"[{_name}#{_id}] Aggregating histograms...")
 
         global_hist = None
         for index, encoded_hist in hists.items():
@@ -56,6 +67,10 @@ def post(input_file: str, result_path: str, output_path: str):
                     global_hist = hist
                 else:
                     global_hist.add(hist)
+
+            logging.info(f"[{_name}#{_id}] Histogram {index + 1}/{hist_count}")
+
+        logging.info(f"[{_name}#{_id}] Saving histogram stats...")
 
         latency_df.append(pd.DataFrame(dict(count=global_hist.get_total_count(),
                                             min=global_hist.get_min_value(),
@@ -86,6 +101,10 @@ def post(input_file: str, result_path: str, output_path: str):
 
 if __name__ == "__main__":
     import argparse
+
+    from sys import stdout
+
+    logging.basicConfig(stream=stdout, level=logging.INFO, format="%(asctime)s %(levelname)s : %(message)s")
 
     parser = argparse.ArgumentParser()
 
