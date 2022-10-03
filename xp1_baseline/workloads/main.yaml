@@ -11,6 +11,8 @@ bindings:
 
 blocks:
   schema:
+    params:
+      timeout: 30.0
     ops:
       create-keyspace:
         simple: |
@@ -27,6 +29,7 @@ blocks:
   rampup:
     params:
       cl: LOCAL_ONE
+      timeout: 10.0
     ops:
       rampup-insert:
         prepared: |
@@ -36,6 +39,7 @@ blocks:
     params:
       ratio: 1
       cl: LOCAL_ONE
+      timeout: 10.0
     ops:
       main-select:
         prepared: |
