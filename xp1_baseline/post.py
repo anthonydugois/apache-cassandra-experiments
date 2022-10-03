@@ -8,6 +8,10 @@ from hdrh.histogram import HdrHistogram
 
 ROOT = pathlib.Path(__file__).parent
 
+HIST_MIN = 1
+HIST_MAX = 1_000_000_000_000
+HIST_DIGITS = 3
+
 
 def post(input_file: str, result_path: str, output_path: str):
     _result_path = pathlib.Path(result_path)
@@ -58,33 +62,30 @@ def post(input_file: str, result_path: str, output_path: str):
 
         logging.info(f"[{_name}#{_id}] Aggregating histograms...")
 
-        global_hist = None
+        hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
         for index, encoded_hist in hists.items():
-            hist = HdrHistogram.decode(encoded_hist)
+            _hist = HdrHistogram.decode(encoded_hist)
 
-            if hist.get_total_count() > 0:
-                if global_hist is None:
-                    global_hist = hist
-                else:
-                    global_hist.add(hist)
+            if _hist.get_total_count() > 0:
+                hist.add(_hist)
 
             logging.info(f"[{_name}#{_id}] Histogram {index + 1}/{hist_count}")
 
         logging.info(f"[{_name}#{_id}] Saving histogram stats...")
 
-        latency_df.append(pd.DataFrame(dict(count=global_hist.get_total_count(),
-                                            min=global_hist.get_min_value(),
-                                            max=global_hist.get_max_value(),
-                                            mean=global_hist.get_mean_value(),
-                                            p25=global_hist.get_value_at_percentile(25),
-                                            p50=global_hist.get_value_at_percentile(50),
-                                            p75=global_hist.get_value_at_percentile(75),
-                                            p90=global_hist.get_value_at_percentile(90),
-                                            p95=global_hist.get_value_at_percentile(95),
-                                            p98=global_hist.get_value_at_percentile(98),
-                                            p99=global_hist.get_value_at_percentile(99),
-                                            p999=global_hist.get_value_at_percentile(99.9),
-                                            p9999=global_hist.get_value_at_percentile(99.99),
+        latency_df.append(pd.DataFrame(dict(count=hist.get_total_count(),
+                                            min=hist.get_min_value(),
+                                            max=hist.get_max_value(),
+                                            mean=hist.get_mean_value(),
+                                            p25=hist.get_value_at_percentile(25),
+                                            p50=hist.get_value_at_percentile(50),
+                                            p75=hist.get_value_at_percentile(75),
+                                            p90=hist.get_value_at_percentile(90),
+                                            p95=hist.get_value_at_percentile(95),
+                                            p98=hist.get_value_at_percentile(98),
+                                            p99=hist.get_value_at_percentile(99),
+                                            p999=hist.get_value_at_percentile(99.9),
+                                            p9999=hist.get_value_at_percentile(99.99),
                                             id=_id), index=[0]))
 
     # Save input file
