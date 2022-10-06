@@ -1,5 +1,5 @@
-id,name,repeat,version,hosts,clients,ops,throughput,throughput_ref,rf,value_size_in_bytes,bytes_per_host,docker_image,config_file,driver,workload
-r1,base-1-thrpt,3,base,12,1,100000000,1,NA,3,1000,200000000000,adugois1/apache-cassandra-base:latest,config/cassandra/cassandra-base.yaml,main.json,main.yaml
-r2,se-1-thrpt,3,se,12,1,100000000,1,NA,3,1000,200000000000,adugois1/apache-cassandra-se:latest,config/cassandra/cassandra-se.yaml,main.json,main.yaml
-r3,base-0.8-thrpt,3,base,12,1,100000000,0.8,r1,3,1000,200000000000,adugois1/apache-cassandra-base:latest,config/cassandra/cassandra-base.yaml,main.json,main.yaml
-r4,se-0.8-thrpt,3,se,12,1,100000000,0.8,r1,3,1000,200000000000,adugois1/apache-cassandra-se:latest,config/cassandra/cassandra-se.yaml,main.json,main.yaml
+id,name,repeat,version,hosts,clients,ops,throughput,throughput_ref,rf,value_size_in_bytes,bytes_per_host,docker_image,config_file,driver_config_file,workload_file
+r1,base-1-thrpt,3,base,12,1,100000000,1,NA,3,1000,200000000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.json,main.yaml
+r2,se-1-thrpt,3,se,12,1,100000000,1,NA,3,1000,200000000000,adugois1/apache-cassandra-se:latest,cassandra-se.yaml,main.json,main.yaml
+r3,base-0.8-thrpt,3,base,12,1,100000000,0.8,r1,3,1000,200000000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.json,main.yaml
+r4,se-0.8-thrpt,3,se,12,1,100000000,0.8,r1,3,1000,200000000000,adugois1/apache-cassandra-se:latest,cassandra-se.yaml,main.json,main.yaml

@@ -1,0 +1,3 @@
+id,name,repeat,version,hosts,clients,ops,throughput,throughput_ref,rf,value_size_in_bytes,bytes_per_host,docker_image,config_file,driver_config_file,workload_file
+r1,first,2,base,2,1,10000,1,NA,2,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.json,main.yaml
+r2,second,2,se,2,1,10000,1,NA,2,1000,100000000,adugois1/apache-cassandra-se:latest,cassandra-se.yaml,main.json,main.yaml
