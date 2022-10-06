@@ -72,12 +72,13 @@ def run(site: str,
         report_interval=DEFAULT_REPORT_INTERVAL,
         histogram_filter=DEFAULT_HISTOGRAM_FILTER):
     _output_path = pathlib.Path(output_path)
-
-    parameters.to_csv(_output_path / "input.all.csv")
-    filtered_parameters.to_csv(_output_path / "input.csv")
+    _output_path.mkdir(parents=True, exist_ok=True)
 
     _raw_path = _output_path / "raw"
     _raw_path.mkdir(parents=True, exist_ok=True)
+
+    parameters.to_csv(_output_path / "input.all.csv")
+    filtered_parameters.to_csv(_output_path / "input.csv")
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64, which is not usable in
     # the resource driver.
