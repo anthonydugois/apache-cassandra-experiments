@@ -248,7 +248,7 @@ def run(site: str,
             nb.sync_results(_run_path)
 
             # Destroy instances
-            logging.info("Destroying instances...")
+            logging.info("Destroying instances.")
 
             nb.destroy()
             cassandra.destroy()

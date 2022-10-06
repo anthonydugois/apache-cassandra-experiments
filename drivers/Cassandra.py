@@ -211,11 +211,13 @@ class Cassandra:
 
         1. Stop and remove the Cassandra Docker container.
         2. Remove the configuration files.
+        3. Drop caches.
         """
 
         with en.actions(roles=self.hosts) as actions:
             actions.docker_container(name=self.name, state="absent")
             actions.file(path="{{remote_root_path}}", state="absent")
+            actions.shell(cmd="sync && echo 3 > /proc/sys/vm/drop_caches")
 
     def logs(self):
         with en.actions(roles=self.hosts[0]) as actions:
