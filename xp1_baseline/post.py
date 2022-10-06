@@ -1,9 +1,8 @@
 import logging
 import pathlib
-import shutil
 import tarfile
-import pandas as pd
 
+import pandas as pd
 from hdrh.histogram import HdrHistogram
 
 ROOT = pathlib.Path(__file__).parent
@@ -13,104 +12,116 @@ HIST_MAX = 1_000_000_000_000
 HIST_DIGITS = 3
 
 
-def post(input_file: str,
-         result_path: str,
-         output_path: str,
+def post(result_path: str,
          start_time: float,
-         end_time: float):
+         end_time: float,
+         archive: bool):
     _result_path = pathlib.Path(result_path)
-    _output_path = pathlib.Path(output_path)
+    _raw_path = _result_path / "raw"
 
-    _output_path.mkdir(parents=True, exist_ok=True)
+    _tidy_path = _result_path / "tidy"
+    _tidy_path.mkdir(parents=True, exist_ok=True)
 
-    dstat_dfs, timeseries_dfs, latency_dfs = [], [], []
+    parameters = pd.read_csv(_result_path / "input.csv", index_col="id")
 
-    for row_path in _result_path.iterdir():
-        row: pd.Series = pd.read_csv(row_path / "input.csv", index_col="id").iloc[0]
+    dfs = dict(clients=[], hosts=[], timeseries=[], latency=[])
 
-        _id = row.name
-        _name = row["name"]
+    for _id, params in parameters.iterrows():
+        _name = params["name"]
+        _repeat = params["repeat"]
 
-        logging.info(f"[{_name}#{_id}] Processing data in {row_path}.")
-        logging.info(f"[{_name}#{_id}] Input parameters:\n\n{row}\n\n")
+        _path = _raw_path / _name
+        if _path.exists():
+            logging.info(f"[{_name}#{_id}] Processing {_path}.")
+            logging.info(f"[{_name}#{_id}] Input parameters:\n\n{params}\n\n")
 
-        # Process Dstat files
-        logging.info(f"[{_name}#{_id}] Tidying Dstat data...")
+            for run_index in range(_repeat):
+                _run_path = _path / f"run-{run_index}"
+                if _run_path.exists():
+                    logging.info(f"[{_name}#{_id} - run {run_index}] Processing {_run_path}.")
 
-        dstat_dir = row_path / "dstat"
-        dstat_files = list(dstat_dir.rglob("*-dstat.csv"))
+                    # Process Dstat results
+                    for key in ["clients", "hosts"]:
+                        _dstat_path = _run_path / key / "dstat"
+                        _dstat_files = list(_dstat_path.rglob("*-dstat.csv"))
 
-        if len(dstat_files) > 0:
-            dstat_df = pd.read_csv(dstat_files[0], skiprows=5, index_col=False)
-            dstat_df["id"] = _id
+                        if len(_dstat_files) > 0:
+                            for _dstat_file in _dstat_files:
+                                dstat_df = pd.read_csv(_dstat_file, skiprows=5, index_col=False)
+                                dstat_df["id"] = _id
+                                dstat_df["run"] = run_index
+                                dstat_df["host_address"] = _dstat_file.name.split("__")[0]
 
-            dstat_dfs.append(dstat_df)
+                                dfs[key].append(dstat_df)
+                        else:
+                            logging.warning(f"[{_name}#{_id} - run {run_index}] No Dstat file in {_dstat_path}."
+                                            "Ignoring this run.")
 
-        # Process timeseries
-        logging.info(f"[{_name}#{_id}] Tidying timeseries data...")
+                    # Process timeseries results
+                    ts_df = pd.read_csv(_run_path / "data" / "csv" / f"{ROOT.name}.result.csv", index_col=False)
+                    ts_df["time"] = ts_df["t"] - ts_df.iloc[0]["t"]  # Compute relative time
+                    ts_df["id"] = _id
+                    ts_df["run"] = run_index
 
-        result_file = row_path / "data" / "csv" / f"{ROOT.name}.result.csv"
+                    dfs["timeseries"].append(ts_df)
 
-        ts_df = pd.read_csv(result_file, index_col=False)
-        ts_df["id"] = _id
-        ts_df["time"] = ts_df["t"] - ts_df.iloc[0]["t"]  # Compute relative time
+                    # Process latency histogram results
+                    hist_df = pd.read_csv(_run_path / "data" / "histograms.csv", skiprows=3, index_col=0)
+                    hist_df.reset_index(drop=True, inplace=True)
 
-        timeseries_dfs.append(ts_df)
+                    # Filter histograms in time range
+                    hist_df = hist_df[(hist_df["StartTimestamp"] > start_time) &
+                                      (hist_df["StartTimestamp"] + hist_df["Interval_Length"] < end_time)]
 
-        # Process histograms
-        hist_file = row_path / "data" / "histograms.csv"
+                    hists = hist_df["Interval_Compressed_Histogram"]
 
-        hist_df = pd.read_csv(hist_file, skiprows=3, index_col=0)
-        hist_df.reset_index(drop=True, inplace=True)
+                    hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+                    hist_count = hists.size
+                    hist_index = 0
 
-        hist_df = hist_df[(hist_df["StartTimestamp"] > start_time) &
-                          (hist_df["StartTimestamp"] + hist_df["Interval_Length"] < end_time)]
+                    for _, encoded_hist in hists.items():
+                        _hist = HdrHistogram.decode(encoded_hist)
 
-        logging.info(f"[{_name}#{_id}] Aggregating histograms...")
+                        if _hist.get_total_count() > 0:
+                            hist.add(_hist)
+                            hist_index += 1
 
-        hists = hist_df["Interval_Compressed_Histogram"]
+                        logging.info(f"[{_name}#{_id} - run {run_index}] Added histogram {hist_index}/{hist_count}")
 
-        hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
-        hist_count = hists.size
-        hist_index = 0
+                    latency_row = dict(count=hist.get_total_count(),
+                                       min=hist.get_min_value(),
+                                       max=hist.get_max_value(),
+                                       mean=hist.get_mean_value(),
+                                       p25=hist.get_value_at_percentile(25),
+                                       p50=hist.get_value_at_percentile(50),
+                                       p75=hist.get_value_at_percentile(75),
+                                       p90=hist.get_value_at_percentile(90),
+                                       p95=hist.get_value_at_percentile(95),
+                                       p98=hist.get_value_at_percentile(98),
+                                       p99=hist.get_value_at_percentile(99),
+                                       p999=hist.get_value_at_percentile(99.9),
+                                       p9999=hist.get_value_at_percentile(99.99),
+                                       id=_id,
+                                       run=run_index)
 
-        for _, encoded_hist in hists.items():
-            _hist = HdrHistogram.decode(encoded_hist)
-
-            if _hist.get_total_count() > 0:
-                hist.add(_hist)
-                hist_index += 1
-
-            logging.info(f"[{_name}#{_id}] Added histogram {hist_index}/{hist_count}")
-
-        logging.info(f"[{_name}#{_id}] Saving histogram stats...")
-
-        latency_stats = dict(count=hist.get_total_count(),
-                             min=hist.get_min_value(),
-                             max=hist.get_max_value(),
-                             mean=hist.get_mean_value(),
-                             p25=hist.get_value_at_percentile(25),
-                             p50=hist.get_value_at_percentile(50),
-                             p75=hist.get_value_at_percentile(75),
-                             p90=hist.get_value_at_percentile(90),
-                             p95=hist.get_value_at_percentile(95),
-                             p98=hist.get_value_at_percentile(98),
-                             p99=hist.get_value_at_percentile(99),
-                             p999=hist.get_value_at_percentile(99.9),
-                             p9999=hist.get_value_at_percentile(99.99),
-                             id=_id)
-
-        latency_dfs.append(pd.DataFrame(latency_stats, index=[0]))
+                    dfs["latency"].append(pd.DataFrame(latency_row, index=[0]))
+                else:
+                    logging.warning(f"{_run_path} does not exist.")
+        else:
+            logging.warning(f"{_path} does not exist.")
 
     # Save CSV files
-    shutil.copy(input_file, _output_path / "input.csv")
-    pd.concat(dstat_dfs).to_csv(_output_path / "dstat.csv", index=False)
-    pd.concat(timeseries_dfs).to_csv(_output_path / "timeseries.csv", index=False)
-    pd.concat(latency_dfs).to_csv(_output_path / "latency.csv", index=False)
+    for key in dfs:
+        pd.concat(dfs[key]).to_csv(_tidy_path / f"{key}.csv", index=False)
 
-    # Compress results
-    with tarfile.open(_output_path.parent / "tidy.tar.gz", mode="w:gz") as file:
-        file.add(_output_path, arcname=_output_path.name)
+    # Archive results
+    if archive:
+        _archive_path = ROOT.parent / "archives"
+        if not _archive_path.exists():
+            _archive_path.mkdir()
+
+        with tarfile.open(_archive_path / f"{_result_path.name}.tar.xz", mode="w:xz") as file:
+            file.add(_result_path, arcname=_result_path.name)
 
 
 if __name__ == "__main__":
@@ -122,16 +133,14 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("input", type=str)
-    parser.add_argument("--result", type=str, default=str(ROOT / "output" / "raw"))
-    parser.add_argument("--output", type=str, default=str(ROOT / "output" / "tidy"))
+    parser.add_argument("result", type=str)
     parser.add_argument("--start-time", type=float, default=0.0)
     parser.add_argument("--end-time", type=float, default=float("inf"))
+    parser.add_argument("--archive", action="store_true")
 
     args = parser.parse_args()
 
-    post(input_file=args.input,
-         result_path=args.result,
-         output_path=args.output,
+    post(result_path=args.result,
          start_time=args.start_time,
-         end_time=args.end_time)
+         end_time=args.end_time,
+         archive=args.archive)

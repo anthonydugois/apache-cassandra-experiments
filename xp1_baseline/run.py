@@ -228,7 +228,7 @@ def run(site: str,
                 _dstat_dir = _tmp_dstat_path / client.address
                 if _dstat_dir.exists():
                     for _dstat_file in _dstat_dir.rglob("*-dstat.csv"):
-                        shutil.copy(_dstat_file, _client_dstat_path / f"{client.address}-{_dstat_file.name}")
+                        shutil.copy(_dstat_file, _client_dstat_path / f"{client.address}__{_dstat_file.name}")
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")
 
@@ -236,7 +236,7 @@ def run(site: str,
                 _dstat_dir = _tmp_dstat_path / host.address
                 if _dstat_dir.exists():
                     for _dstat_file in _dstat_dir.rglob("*-dstat.csv"):
-                        shutil.copy(_dstat_file, _host_dstat_path / f"{host.address}-{_dstat_file.name}")
+                        shutil.copy(_dstat_file, _host_dstat_path / f"{host.address}__{_dstat_file.name}")
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")
 
