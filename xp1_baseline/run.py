@@ -19,11 +19,46 @@ DEFAULT_CLUSTER = "gros"
 DEFAULT_ENV_NAME = "debian11-x64-min"
 DEFAULT_WALLTIME = "00:30:00"
 DEFAULT_OUTPUT = str(ROOT / "output" / f"{ROOT.name}.{datetime.now().isoformat(timespec='seconds')}")
+DEFAULT_INFER_FROM = 0
 DEFAULT_RAMPUP_RATE = 50_000
 DEFAULT_REPORT_INTERVAL = 30
 DEFAULT_HISTOGRAM_FILTER = ".*result:30s"
 
 DSTAT_SLEEP_IN_SEC = 5
+
+
+def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: pathlib.Path, start_time: int):
+    if not pd.isna(ref_id):
+        rows = parameters[parameters.index == ref_id]
+        if rows.empty:
+            logging.error(f"Reference #{ref_id} does not exist. Could not infer saturating throughput.")
+        else:
+            ref_params = rows.iloc[0]
+            ref_name = ref_params["name"]
+            ref_repeat = ref_params["repeat"]
+
+            _ref_path = basepath / ref_name
+            if _ref_path.exists():
+                # Retrieve saturating throughput
+                mean_rates = []
+                for run_index in range(ref_repeat):
+                    _run_path = _ref_path / f"run-{run_index}"
+                    if _run_path.exists():
+                        df = pd.read_csv(_run_path / "data" / "csv" / f"{ROOT.name}.result.csv", index_col=False)
+                        df["time"] = df["t"] - df.iloc[0]["t"]  # Compute relative time
+
+                        mean_rates.append(df[df["time"] >= start_time]["mean_rate"].mean())
+                    else:
+                        logging.warning(f"{_run_path} does not exist.")
+
+                if len(mean_rates) > 0:
+                    return sum(mean_rates) / len(mean_rates)
+                else:
+                    logging.warning("Unable to compute the mean saturating throughput. Falling back to 0.")
+            else:
+                logging.warning(f"Reference #{ref_id} has not been executed. Could not infer saturating throughput.")
+
+    return 0
 
 
 def run(site: str,
@@ -33,6 +68,7 @@ def run(site: str,
         filtered_parameters: pd.DataFrame,
         output_path: str,
         rampup_rate=DEFAULT_RAMPUP_RATE,
+        infer_from=DEFAULT_INFER_FROM,
         report_interval=DEFAULT_REPORT_INTERVAL,
         histogram_filter=DEFAULT_HISTOGRAM_FILTER):
     _output_path = pathlib.Path(output_path)
@@ -85,25 +121,9 @@ def run(site: str,
         key_count = round(bytes_total / _value_size_in_bytes)
 
         # Infer saturating throughput
-        sat_throughput = 0
-        if not pd.isna(_throughput_ref):
-            ref_match = parameters[parameters.index == _throughput_ref]
-
-            if ref_match.empty:
-                logging.error(f"Reference #{_throughput_ref} does not exist.")
-            else:
-                ref_row = ref_match.iloc[0]
-                ref_path = _raw_path / ref_row["name"]
-
-                if ref_path.exists():
-                    # Retrieve saturating throughput
-                    ref_df = pd.read_csv(ref_path / "data" / "csv" / f"{ROOT.name}.result.csv", index_col=False)
-                    sat_throughput = ref_df[ref_df["count"] >= ref_row["ops"]].iloc[0]["mean_rate"]
-
-                    logging.info(f"Saturating throughput currently set to {sat_throughput}.")
-                else:
-                    logging.warning(f"Reference #{_throughput_ref} has not been executed yet."
-                                    "Could not infer saturating throughput.")
+        sat_throughput = infer_throughput(parameters, _throughput_ref, _raw_path, infer_from)
+        if sat_throughput > 0:
+            logging.info(f"Saturating throughput currently set to {sat_throughput}.")
 
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
         nb_hosts = resources.roles["clients"][:_clients]
@@ -277,6 +297,7 @@ if __name__ == "__main__":
     parser.add_argument("--walltime", type=str, default=DEFAULT_WALLTIME)
     parser.add_argument("--output", type=str, default=DEFAULT_OUTPUT)
     parser.add_argument("--rampup-rate", type=int, default=DEFAULT_RAMPUP_RATE)
+    parser.add_argument("--infer-from", type=int, default=DEFAULT_INFER_FROM)
     parser.add_argument("--report-interval", type=int, default=DEFAULT_REPORT_INTERVAL)
     parser.add_argument("--histogram-filter", type=str, default=DEFAULT_HISTOGRAM_FILTER)
     parser.add_argument("--id", type=str, action="append", default=None)
@@ -319,5 +340,6 @@ if __name__ == "__main__":
         filtered_parameters=rows,
         output_path=args.output,
         rampup_rate=args.rampup_rate,
+        infer_from=args.infer_from,
         report_interval=args.report_interval,
         histogram_filter=args.histogram_filter)

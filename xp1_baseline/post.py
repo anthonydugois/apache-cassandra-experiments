@@ -70,8 +70,8 @@ def post(result_path: str,
                     hist_df.reset_index(drop=True, inplace=True)
 
                     # Filter histograms in time range
-                    hist_df = hist_df[(hist_df["StartTimestamp"] > start_time) &
-                                      (hist_df["StartTimestamp"] + hist_df["Interval_Length"] < end_time)]
+                    hist_df = hist_df[(hist_df["StartTimestamp"] >= start_time) &
+                                      (hist_df["StartTimestamp"] + hist_df["Interval_Length"] <= end_time)]
 
                     hists = hist_df["Interval_Compressed_Histogram"]
 
