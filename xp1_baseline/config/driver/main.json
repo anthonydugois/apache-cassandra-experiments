@@ -1,6 +1,0 @@
-{
-  "basic.request.consistency": "LOCAL_ONE",
-  "basic.request.page-size": 0,
-  "basic.load-balancing-policy.slow-replica-avoidance": false,
-  "advanced.protocol.version": "V5"
-}
