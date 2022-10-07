@@ -1,6 +1,6 @@
+import logging
 from typing import Optional
 
-import logging
 import enoslib as en
 
 DEFAULT_DOCKER_REGISTRY = dict(type="external", ip="docker-cache.grid5000.fr", port=80)

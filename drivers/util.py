@@ -1,6 +1,6 @@
+import pathlib
 from typing import Union
 
-import pathlib
 import yaml
 
 

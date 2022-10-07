@@ -1,11 +1,12 @@
-from typing import Optional, Union
-
 import logging
 import pathlib
 import shutil
 import time
-import drivers.util as util
+from typing import Optional, Union
+
 import enoslib as en
+
+import drivers.util as util
 
 
 def host_addresses(hosts: list[en.Host], port=0):
@@ -108,6 +109,13 @@ class Cassandra:
                                 "rpc_address": host.address
                             })
 
+    def create_extra_config(self, template_paths: list[Union[str, pathlib.Path]]):
+        for host in self.hosts:
+            local_conf_path = host.extra["local_conf_path"]
+
+            for template_path in template_paths:
+                shutil.copy(template_path, local_conf_path)
+
     def deploy(self):
         """
         Deploy a cluster of Cassandra nodes. Make some system optimizations to run Cassandra properly.
@@ -140,6 +148,16 @@ class Cassandra:
                                          {
                                              "source": "{{remote_conf_path}}/cassandra.yaml",
                                              "target": "{{remote_container_conf_path}}/cassandra.yaml",
+                                             "type": "bind"
+                                         },
+                                         {
+                                             "source": "{{remote_conf_path}}/jvm-server.options",
+                                             "target": "{{remote_container_conf_path}}/jvm-server.options",
+                                             "type": "bind"
+                                         },
+                                         {
+                                             "source": "{{remote_conf_path}}/jvm11-server.options",
+                                             "target": "{{remote_container_conf_path}}/jvm11-server.options",
                                              "type": "bind"
                                          }
                                      ],

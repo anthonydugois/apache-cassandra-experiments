@@ -1,7 +1,7 @@
-from typing import Optional, Union
-
 import logging
 import pathlib
+from typing import Optional, Union
+
 import enoslib as en
 
 
@@ -131,7 +131,7 @@ class NoSQLBench:
     def destroy(self):
         with en.actions(roles=self.hosts) as actions:
             actions.file(path=self.remote_root_path, state="absent")
-            
+
             for name in self.command_names:
                 actions.docker_container(name=name, state="absent")
 
@@ -141,7 +141,7 @@ class NoSQLBench:
 
         if hosts is None:
             hosts = self.hosts
-            
+
         if name is None:
             name = self.name
 
@@ -166,7 +166,7 @@ class NoSQLBench:
                                          }
                                      ],
                                      command=cmd)
-        
+
         self.command_names.append(name)
 
     def driver(self, name: str):

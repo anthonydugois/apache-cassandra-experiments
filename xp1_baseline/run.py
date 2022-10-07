@@ -139,7 +139,9 @@ def run(site: str,
 
         # Save config
         shutil.copy(cassandra_config_file, _config_path / "cassandra.yaml")
-        shutil.copy(nb_driver_config_file, _config_path / "nb-driver.json")
+        shutil.copy(cassandra_config_path / "jvm-server.options", _config_path)
+        shutil.copy(cassandra_config_path / "jvm11-server.options", _config_path)
+        shutil.copy(nb_driver_config_file, _config_path / "nb-driver.conf")
         shutil.copy(nb_workload_file, _config_path / "nb-workload.yaml")
 
         # Save input parameters
@@ -157,6 +159,8 @@ def run(site: str,
 
             cassandra.init(cassandra_hosts)
             cassandra.create_config(cassandra_config_file)
+            cassandra.create_extra_config([cassandra_config_path / "jvm-server.options",
+                                           cassandra_config_path / "jvm11-server.options"])
             cassandra.deploy_and_start()
 
             logging.info(cassandra.nodetool("status"))
