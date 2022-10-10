@@ -41,19 +41,19 @@ def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: pathlib.Pa
             _ref_path = basepath / ref_name
             if _ref_path.exists():
                 # Retrieve saturating throughput
-                mean_rates = []
+                observed_rates = []
                 for run_index in range(ref_repeat):
                     _run_path = _ref_path / f"run-{run_index}"
                     if _run_path.exists():
                         df = pd.read_csv(_run_path / "data" / "csv" / f"{ROOT.name}.result.csv", index_col=False)
                         df["time"] = df["t"] - df.iloc[0]["t"]  # Compute relative time
 
-                        mean_rates.append(df[df["time"] >= start_time]["mean_rate"].mean())
+                        observed_rates.append(df[df["time"] >= start_time]["mean_rate"].mean())
                     else:
                         logging.warning(f"{_run_path} does not exist.")
 
-                if len(mean_rates) > 0:
-                    return sum(mean_rates) / len(mean_rates)
+                if len(observed_rates) > 0:
+                    return sum(observed_rates) / len(observed_rates)
                 else:
                     logging.warning("Unable to compute the mean saturating throughput. Falling back to 0.")
             else:
