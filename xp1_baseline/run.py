@@ -111,8 +111,8 @@ def run(site: str,
         _version = params["version"]
         _hosts = params["hosts"]
         _clients = params["clients"]
-        _client_threads = params["client_threads"]
-        _client_async = params["client_async"]
+        _threads = params["threads"]
+        _strides = params["strides"]
         _ops = params["ops"]
         _throughput = params["throughput"]
         _throughput_ref = params["throughput_ref"]
@@ -229,15 +229,12 @@ def run(site: str,
                                 alias=ROOT.name,
                                 tags="block:main-read",
                                 driverconfig=nb.driver(nb_driver_config_file.name),
-                                threads=_client_threads,
-                                stride=1000,
+                                threads=_threads,
+                                stride=_strides,
                                 cycles=_ops,
                                 keycount=key_count,
                                 host=cassandra.get_host_address(0),
                                 localdc="datacenter1")
-
-            if not pd.isna(_client_async):
-                main_options["async"] = _client_async
 
             if sat_throughput > 0:
                 main_options["cyclerate"] = _throughput * sat_throughput
