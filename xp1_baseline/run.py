@@ -48,7 +48,16 @@ def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: pathlib.Pa
                         df = pd.read_csv(_run_path / "data" / "csv" / f"{ROOT.name}.result.csv", index_col=False)
                         df["time"] = df["t"] - df.iloc[0]["t"]  # Compute relative time
 
-                        observed_rates.append(df[df["time"] >= start_time]["mean_rate"].mean())
+                        significant_values = df[df["time"] >= start_time]  # Filter significant values
+                        if significant_values.empty:
+                            logging.warning(f"No significant values found in {_run_path}."
+                                            "Provided filter is probably too aggressive."
+                                            "Falling back to default filtering policy.")
+
+                            start_index = len(df) // 2
+                            significant_values = df.iloc[start_index:]
+
+                        observed_rates.append(significant_values["mean_rate"].mean())
                     else:
                         logging.warning(f"{_run_path} does not exist.")
 
