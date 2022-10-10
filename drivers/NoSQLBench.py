@@ -184,12 +184,21 @@ class NoSQLBench:
     def data(self, path=""):
         return f"{self.remote_container_data_path}{path}"
 
-    def sync_results(self, local_dest: Union[str, pathlib.Path], hosts: Optional[list[en.Host]] = None):
+    def sync_results(self, basepath: Union[str, pathlib.Path], hosts: Optional[list[en.Host]] = None):
+        if isinstance(basepath, str):
+            basepath = pathlib.Path(basepath)
+
+        # Ensure dest folder exists
+        basepath.mkdir(parents=True, exist_ok=True)
+
         if hosts is None:
             hosts = self.hosts
 
-        # Ensure destination folder exists
-        pathlib.Path(local_dest).mkdir(parents=True, exist_ok=True)
+        for host in hosts:
+            local_path = basepath / host.address
+            local_path.mkdir(parents=True, exist_ok=True)
+
+            host.extra.update(local_path=str(local_path))
 
         with en.actions(roles=hosts) as actions:
-            actions.synchronize(src=self.remote_data_path, dest=str(local_dest), mode="pull")
+            actions.synchronize(src=self.remote_data_path, dest="{{local_path}}", mode="pull")

@@ -152,11 +152,11 @@ def run(site: str,
         nb_workload_file = nb_workload_path / _workload_file
 
         # Save config
-        shutil.copy(cassandra_config_file, _config_path / "cassandra.yaml")
-        shutil.copy(cassandra_config_path / "jvm-server.options", _config_path)
-        shutil.copy(cassandra_config_path / "jvm11-server.options", _config_path)
-        shutil.copy(nb_driver_config_file, _config_path / "nb-driver.conf")
-        shutil.copy(nb_workload_file, _config_path / "nb-workload.yaml")
+        shutil.copy2(cassandra_config_file, _config_path / "cassandra.yaml")
+        shutil.copy2(cassandra_config_path / "jvm-server.options", _config_path)
+        shutil.copy2(cassandra_config_path / "jvm11-server.options", _config_path)
+        shutil.copy2(nb_driver_config_file, _config_path / "nb-driver.conf")
+        shutil.copy2(nb_workload_file, _config_path / "nb-workload.yaml")
 
         # Save input parameters
         input_row = parameters[parameters.index == _id]
@@ -258,42 +258,54 @@ def run(site: str,
                 main_cmds.append((host, main_cmd))
 
             _tmp_dstat_path = _run_path / "dstat"
+            _tmp_data_path = _run_path / "data"
             with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start main experiment
                 nb.command("nb-main", main_cmds)
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Let the system recover before killing Dstat
 
+            nb.sync_results(_tmp_data_path)
+
             # Save results
             _client_path = _run_path / "clients"
-            _client_dstat_path = _client_path / "dstat"
-            _client_dstat_path.mkdir(parents=True, exist_ok=True)
+            _client_path.mkdir(parents=True, exist_ok=True)
 
             _host_path = _run_path / "hosts"
-            _host_dstat_path = _host_path / "dstat"
-            _host_dstat_path.mkdir(parents=True, exist_ok=True)
+            _host_path.mkdir(parents=True, exist_ok=True)
 
             for client in nb.hosts:
                 _dstat_dir = _tmp_dstat_path / client.address
                 if _dstat_dir.exists():
+                    _client_dstat_path = _client_path / client.address / "dstat"
+                    _client_dstat_path.mkdir(parents=True, exist_ok=True)
+
                     for _dstat_file in _dstat_dir.rglob("*-dstat.csv"):
-                        shutil.copy(_dstat_file, _client_dstat_path / f"{client.address}__{_dstat_file.name}")
+                        shutil.copy2(_dstat_file, _client_dstat_path / _dstat_file.name)
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")
+
+                _data_dir = _tmp_data_path / client.address
+                if _data_dir.exists():
+                    shutil.copytree(_data_dir, _client_path / client.address / "data")
+                else:
+                    logging.warning(f"{_data_dir} does not exist.")
 
             for host in cassandra.hosts:
                 _dstat_dir = _tmp_dstat_path / host.address
                 if _dstat_dir.exists():
+                    _host_dstat_path = _host_path / host.address / "dstat"
+                    _host_dstat_path.mkdir(parents=True, exist_ok=True)
+
                     for _dstat_file in _dstat_dir.rglob("*-dstat.csv"):
-                        shutil.copy(_dstat_file, _host_dstat_path / f"{host.address}__{_dstat_file.name}")
+                        shutil.copy2(_dstat_file, _host_dstat_path / _dstat_file.name)
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")
-
-            shutil.rmtree(_tmp_dstat_path)
 
             with (_host_path / "cassandra.log").open("w") as file:
                 file.write(cassandra.logs())
 
-            nb.sync_results(_run_path)
+            shutil.rmtree(_tmp_dstat_path)
+            shutil.rmtree(_tmp_data_path)
 
             logging.info(f"Results have been saved in {_run_path}.")
 
