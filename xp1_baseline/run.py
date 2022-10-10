@@ -23,7 +23,7 @@ DEFAULT_INFER_FROM = 0
 DEFAULT_RAMPUP_RATE = 50_000
 DEFAULT_REPORT_INTERVAL = 30
 DEFAULT_HISTOGRAM_FILTER = ".*result:30s"
-DEFAULT_DSTAT_OPTIONS = "-aT"
+DEFAULT_DSTAT_OPTIONS = "-Tcmdns"
 
 DSTAT_SLEEP_IN_SEC = 5
 
@@ -318,7 +318,6 @@ if __name__ == "__main__":
     parser.add_argument("--infer-from", type=int, default=DEFAULT_INFER_FROM)
     parser.add_argument("--report-interval", type=int, default=DEFAULT_REPORT_INTERVAL)
     parser.add_argument("--histogram-filter", type=str, default=DEFAULT_HISTOGRAM_FILTER)
-    parser.add_argument("--dstat-options", type=str, default=DEFAULT_DSTAT_OPTIONS)
     parser.add_argument("--id", type=str, action="append", default=None)
     parser.add_argument("--from-id", type=str, default=None)
     parser.add_argument("--to-id", type=str, default=None)
@@ -361,5 +360,4 @@ if __name__ == "__main__":
         rampup_rate=args.rampup_rate,
         infer_from=args.infer_from,
         report_interval=args.report_interval,
-        histogram_filter=args.histogram_filter,
-        dstat_options=args.dstat_options)
+        histogram_filter=args.histogram_filter)
