@@ -100,7 +100,6 @@ class NoSQLBench:
         self.remote_container_data_path = "/var/lib/nosqlbench"
 
         self.hosts = None
-        self.command_names = []
 
     @property
     def host_count(self):
@@ -132,20 +131,16 @@ class NoSQLBench:
         with en.actions(roles=self.hosts) as actions:
             actions.file(path=self.remote_root_path, state="absent")
 
-            for name in self.command_names:
-                actions.docker_container(name=name, state="absent")
+    def command(self, name: str, cmds: list[tuple[en.Host, Union[str, Command]]]):
+        hosts = []
 
-    def command(self, cmd: Union[str, Command], hosts: Optional[list[en.Host]] = None, name: Optional[str] = None):
-        if isinstance(cmd, Command):
-            cmd = str(cmd)
+        for host, cmd in cmds:
+            if isinstance(cmd, Command):
+                cmd = str(cmd)
 
-        if hosts is None:
-            hosts = self.hosts
+            host.extra.update(current_command=cmd)
+            hosts.append(host)
 
-        if name is None:
-            name = self.name
-
-        for host in hosts:
             logging.info(f"[{host.address}] Running command `{cmd}`.")
 
         with en.actions(roles=hosts) as actions:
@@ -165,9 +160,18 @@ class NoSQLBench:
                                              "type": "bind"
                                          }
                                      ],
-                                     command=cmd)
+                                     command="{{current_command}}")
 
-        self.command_names.append(name)
+            actions.docker_container(name=name, state="absent")
+
+        for host in hosts:
+            host.extra.update(current_command=None)
+
+    def single_command(self, name: str, cmd: Union[str, Command], host: Optional[en.Host] = None):
+        if host is None:
+            host = self.hosts[0]
+
+        self.command(name, [(host, cmd)])
 
     def driver(self, name: str):
         driver_dir = pathlib.Path(self.driver_path).name

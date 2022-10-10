@@ -133,6 +133,7 @@ def run(site: str,
         rf = min(_rf, _hosts)
         bytes_total = _hosts * _bytes_per_host / rf
         key_count = round(bytes_total / _value_size_in_bytes)
+        ops_per_client = _ops / _clients
 
         # Infer saturating throughput
         sat_throughput = infer_throughput(parameters, _throughput_ref, _raw_path, infer_from)
@@ -200,7 +201,7 @@ def run(site: str,
 
             schema_cmd = RunCommand.from_options(**schema_options)
 
-            nb.command(schema_cmd, name="nb-schema")
+            nb.single_command("nb-schema", schema_cmd)
 
             # Insert data
             rampup_options = dict(driver="cqld4",
@@ -218,40 +219,48 @@ def run(site: str,
 
             rampup_cmd = RunCommand.from_options(**rampup_options)
 
-            nb.command(rampup_cmd, name="nb-rampup")
+            nb.single_command("nb-rampup", rampup_cmd)
 
             logging.info(cassandra.nodetool("tablestats baselines.keyvalue"))
             logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
 
             # Main experiment
-            main_options = dict(driver="cqld4",
-                                workload=nb.workload(nb_workload_file.name),
-                                alias=ROOT.name,
-                                tags="block:main-read",
-                                driverconfig=nb.driver(nb_driver_config_file.name),
-                                threads=_threads,
-                                stride=_strides,
-                                cycles=_ops,
-                                keycount=key_count,
-                                host=cassandra.get_host_address(0),
-                                localdc="datacenter1")
+            main_cmds = []
 
-            if sat_throughput > 0:
-                main_options["cyclerate"] = _throughput * sat_throughput
+            for index, host in enumerate(nb.hosts):
+                start_cycle = index * ops_per_client
+                end_cycle = start_cycle + ops_per_client
 
-            main_cmd = RunCommand \
-                .from_options(**main_options) \
-                .logs_dir(nb.data()) \
-                .log_histograms(nb.data(f"/histograms.csv:{histogram_filter}")) \
-                .log_histostats(nb.data(f"/histostats.csv:{histogram_filter}")) \
-                .report_summary_to(nb.data("/summary.txt")) \
-                .report_csv_to(nb.data("/csv")) \
-                .report_interval(report_interval)
+                main_options = dict(driver="cqld4",
+                                    workload=nb.workload(nb_workload_file.name),
+                                    alias=ROOT.name,
+                                    tags="block:main-read",
+                                    driverconfig=nb.driver(nb_driver_config_file.name),
+                                    threads=_threads,
+                                    stride=_strides,
+                                    cycles=f"{start_cycle}..{end_cycle}",
+                                    keycount=key_count,
+                                    host=cassandra.get_host_address(0),
+                                    localdc="datacenter1")
+
+                if sat_throughput > 0:
+                    main_options["cyclerate"] = _throughput * sat_throughput
+
+                main_cmd = RunCommand \
+                    .from_options(**main_options) \
+                    .logs_dir(nb.data()) \
+                    .log_histograms(nb.data(f"/histograms.csv:{histogram_filter}")) \
+                    .log_histostats(nb.data(f"/histostats.csv:{histogram_filter}")) \
+                    .report_summary_to(nb.data("/summary.txt")) \
+                    .report_csv_to(nb.data("/csv")) \
+                    .report_interval(report_interval)
+
+                main_cmds.append((host, main_cmd))
 
             _tmp_dstat_path = _run_path / "dstat"
             with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start main experiment
-                nb.command(main_cmd, name="nb-main")
+                nb.command("nb-main", main_cmds)
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Let the system recover before killing Dstat
 
             # Save results
