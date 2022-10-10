@@ -23,6 +23,7 @@ DEFAULT_INFER_FROM = 0
 DEFAULT_RAMPUP_RATE = 50_000
 DEFAULT_REPORT_INTERVAL = 30
 DEFAULT_HISTOGRAM_FILTER = ".*result:30s"
+DEFAULT_DSTAT_OPTIONS = "-aT"
 
 DSTAT_SLEEP_IN_SEC = 5
 
@@ -70,7 +71,8 @@ def run(site: str,
         rampup_rate=DEFAULT_RAMPUP_RATE,
         infer_from=DEFAULT_INFER_FROM,
         report_interval=DEFAULT_REPORT_INTERVAL,
-        histogram_filter=DEFAULT_HISTOGRAM_FILTER):
+        histogram_filter=DEFAULT_HISTOGRAM_FILTER,
+        dstat_options=DEFAULT_DSTAT_OPTIONS):
     _output_path = pathlib.Path(output_path)
     _output_path.mkdir(parents=True, exist_ok=True)
 
@@ -148,11 +150,11 @@ def run(site: str,
         input_row = parameters[parameters.index == _id]
         input_row.to_csv(_current_path / "input.csv")
 
-        logging.info(f"Running {_name}#{_id}.")
-
         for run_index in range(_repeat):
             _run_path = _current_path / f"run-{run_index}"
             _run_path.mkdir(parents=True, exist_ok=True)
+
+            logging.info(f"Running {_name}#{_id} - run {run_index}.")
 
             # Deploy and start Cassandra
             cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
@@ -235,7 +237,7 @@ def run(site: str,
                 .report_interval(report_interval)
 
             _tmp_dstat_path = _run_path / "dstat"
-            with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options="-aT", backup_dir=_tmp_dstat_path):
+            with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start main experiment
                 nb.command(main_cmd, name="nb-main")
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Let the system recover before killing Dstat
@@ -272,6 +274,8 @@ def run(site: str,
 
             nb.sync_results(_run_path)
 
+            logging.info(f"Results have been saved in {_run_path}.")
+
             # Destroy instances
             logging.info("Destroying instances.")
 
@@ -305,6 +309,7 @@ if __name__ == "__main__":
     parser.add_argument("--infer-from", type=int, default=DEFAULT_INFER_FROM)
     parser.add_argument("--report-interval", type=int, default=DEFAULT_REPORT_INTERVAL)
     parser.add_argument("--histogram-filter", type=str, default=DEFAULT_HISTOGRAM_FILTER)
+    parser.add_argument("--dstat-options", type=str, default=DEFAULT_DSTAT_OPTIONS)
     parser.add_argument("--id", type=str, action="append", default=None)
     parser.add_argument("--from-id", type=str, default=None)
     parser.add_argument("--to-id", type=str, default=None)
@@ -347,4 +352,5 @@ if __name__ == "__main__":
         rampup_rate=args.rampup_rate,
         infer_from=args.infer_from,
         report_interval=args.report_interval,
-        histogram_filter=args.histogram_filter)
+        histogram_filter=args.histogram_filter,
+        dstat_options=args.dstat_options)
