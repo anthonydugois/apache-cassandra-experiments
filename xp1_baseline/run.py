@@ -137,8 +137,13 @@ def run(site: str,
 
         # Infer saturating throughput
         sat_throughput = infer_throughput(parameters, _throughput_ref, _raw_path, infer_from)
+
+        # Compute real throughput on each client
+        throughput_per_client = 0
         if sat_throughput > 0:
             logging.info(f"Saturating throughput currently set to {sat_throughput}.")
+
+            throughput_per_client = _throughput * sat_throughput / _clients
 
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
         nb_hosts = resources.roles["clients"][:_clients]
@@ -225,26 +230,26 @@ def run(site: str,
             logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
 
             # Main experiment
-            main_cmds = []
+            main_options = dict(driver="cqld4",
+                                workload=nb.workload(nb_workload_file.name),
+                                alias=ROOT.name,
+                                tags="block:main-read",
+                                driverconfig=nb.driver(nb_driver_config_file.name),
+                                threads=_threads,
+                                stride=_strides,
+                                keycount=key_count,
+                                host=cassandra.get_host_address(0),
+                                localdc="datacenter1")
 
+            if throughput_per_client > 0:
+                main_options["cyclerate"] = throughput_per_client
+
+            main_cmds = []
             for index, host in enumerate(nb.hosts):
                 start_cycle = index * ops_per_client
                 end_cycle = start_cycle + ops_per_client
 
-                main_options = dict(driver="cqld4",
-                                    workload=nb.workload(nb_workload_file.name),
-                                    alias=ROOT.name,
-                                    tags="block:main-read",
-                                    driverconfig=nb.driver(nb_driver_config_file.name),
-                                    threads=_threads,
-                                    stride=_strides,
-                                    cycles=f"{start_cycle}..{end_cycle}",
-                                    keycount=key_count,
-                                    host=cassandra.get_host_address(0),
-                                    localdc="datacenter1")
-
-                if sat_throughput > 0:
-                    main_options["cyclerate"] = _throughput * sat_throughput
+                main_options["cycles"] = f"{start_cycle}..{end_cycle}"
 
                 main_cmd = RunCommand \
                     .from_options(**main_options) \
