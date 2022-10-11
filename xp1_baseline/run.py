@@ -256,8 +256,8 @@ def run(site: str,
 
             main_cmds = []
             for index, host in enumerate(nb.hosts):
-                start_cycle = index * ops_per_client
-                end_cycle = start_cycle + ops_per_client
+                start_cycle = int(index * ops_per_client)
+                end_cycle = int(start_cycle + ops_per_client)
 
                 main_options["cycles"] = f"{start_cycle}..{end_cycle}"
 
@@ -299,7 +299,7 @@ def run(site: str,
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")
 
-                _data_dir = _tmp_data_path / client.address
+                _data_dir = _tmp_data_path / client.address / "data"
                 if _data_dir.exists():
                     shutil.copytree(_data_dir, _client_path / client.address / "data")
                 else:
