@@ -1,8 +1,8 @@
 import logging
-import pathlib
 import shutil
 import time
 from datetime import datetime
+from pathlib import Path
 
 import enoslib as en
 import pandas as pd
@@ -10,8 +10,9 @@ import pandas as pd
 from drivers.Cassandra import Cassandra
 from drivers.NoSQLBench import NoSQLBench, RunCommand
 from drivers.Resources import Resources
+from util.infer import MeanRateInference
 
-ROOT = pathlib.Path(__file__).parent
+ROOT = Path(__file__).parent
 
 DEFAULT_JOB_NAME = "cassandra"
 DEFAULT_SITE = "nancy"
@@ -28,7 +29,7 @@ DEFAULT_DSTAT_OPTIONS = "-Tcmdns"
 DSTAT_SLEEP_IN_SEC = 5
 
 
-def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: pathlib.Path, start_time: int):
+def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: Path, start_time: int):
     if not pd.isna(ref_id):
         rows = parameters[parameters.index == ref_id]
         if rows.empty:
@@ -36,35 +37,12 @@ def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: pathlib.Pa
         else:
             ref_params = rows.iloc[0]
             ref_name = ref_params["name"]
-            ref_repeat = ref_params["repeat"]
 
             _ref_path = basepath / ref_name
             if _ref_path.exists():
-                # Retrieve saturating throughput
-                observed_rates = []
-                for run_index in range(ref_repeat):
-                    _run_path = _ref_path / f"run-{run_index}"
-                    if _run_path.exists():
-                        df = pd.read_csv(_run_path / "data" / "csv" / f"{ROOT.name}.result.csv", index_col=False)
-                        df["time"] = df["t"] - df.iloc[0]["t"]  # Compute relative time
-
-                        significant_values = df[df["time"] >= start_time]  # Filter significant values
-                        if significant_values.empty:
-                            logging.warning(f"No significant values found in {_run_path}."
-                                            "Provided filter is probably too aggressive."
-                                            "Falling back to default filtering policy.")
-
-                            start_index = len(df) // 2
-                            significant_values = df.iloc[start_index:]
-
-                        observed_rates.append(significant_values["mean_rate"].mean())
-                    else:
-                        logging.warning(f"{_run_path} does not exist.")
-
-                if len(observed_rates) > 0:
-                    return sum(observed_rates) / len(observed_rates)
-                else:
-                    logging.warning("Unable to compute the mean saturating throughput. Falling back to 0.")
+                return MeanRateInference(_ref_path, start_time) \
+                    .set_run_paths("run-*") \
+                    .infer("**/*.result.csv")
             else:
                 logging.warning(f"Reference #{ref_id} has not been executed. Could not infer saturating throughput.")
 
@@ -82,7 +60,36 @@ def run(site: str,
         report_interval=DEFAULT_REPORT_INTERVAL,
         histogram_filter=DEFAULT_HISTOGRAM_FILTER,
         dstat_options=DEFAULT_DSTAT_OPTIONS):
-    _output_path = pathlib.Path(output_path)
+    """
+    Launch experiment and produce results, organized as following file tree.
+
+    output/
+    ├─ xp1_baseline.2022-01-01T00:00:00/            <- Current experiment
+    │  ├─ raw/                                      <- Raw results
+    │  │  ├─ set-0/                                 <- First set of parameters
+    │  │  │  ├─ config/                             <- Config files used in this experiment
+    │  │  │  ├─ run-0/                              <- First run of this experiment
+    │  │  │  │  ├─ clients/                         <- Data related to clients
+    │  │  │  │  │  ├─ gros-1.nancy.grid5000.fr/     <- Data related to client gros-1
+    │  │  │  │  │  │  ├─ data/                      <- NoSQLBench data
+    │  │  │  │  │  │  ├─ dstat/                     <- Dstat data
+    │  │  │  │  │  ├─ gros-2.nancy.grid5000.fr/
+    │  │  │  │  │  │  ├─ ...
+    │  │  │  │  ├─ hosts/
+    │  │  │  │  │  ├─ ...
+    │  │  │  ├─ run-1/
+    │  │  │  │  ├─ ...
+    │  │  │  ├─ run-2/
+    │  │  │  │  ├─ ...
+    │  │  ├─ set-1/
+    │  │  │  ├─ ...
+    │  │  ├─ set-2/
+    │  │  │  ├─ ...
+    │  ├─ input.all.csv
+    │  ├─ input.csv
+    """
+
+    _output_path = Path(output_path)
     _output_path.mkdir(parents=True, exist_ok=True)
 
     _raw_path = _output_path / "raw"
