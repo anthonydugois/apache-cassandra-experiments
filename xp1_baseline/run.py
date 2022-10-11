@@ -119,7 +119,7 @@ def run(site: str,
         _hosts = params["hosts"]
         _clients = params["clients"]
         _threads = params["threads"]
-        _strides = params["strides"]
+        _stride = params["stride"]
         _ops = params["ops"]
         _throughput = params["throughput"]
         _throughput_ref = params["throughput_ref"]
@@ -133,8 +133,8 @@ def run(site: str,
 
         logging.info(f"Preparing {_name}#{_id}...")
 
-        _current_path = _raw_path / _name
-        _config_path = _current_path / "config"
+        _set_path = _raw_path / _name
+        _config_path = _set_path / "config"
         _config_path.mkdir(parents=True, exist_ok=True)
 
         rf = min(_rf, _hosts)
@@ -172,10 +172,10 @@ def run(site: str,
 
         # Save input parameters
         input_row = parameters[parameters.index == _id]
-        input_row.to_csv(_current_path / "input.csv")
+        input_row.to_csv(_set_path / "input.csv")
 
         for run_index in range(_repeat):
-            _run_path = _current_path / f"run-{run_index}"
+            _run_path = _set_path / f"run-{run_index}"
             _run_path.mkdir(parents=True, exist_ok=True)
 
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
@@ -243,7 +243,7 @@ def run(site: str,
                                 tags="block:main-read",
                                 driverconfig=nb.driver(nb_driver_config_file.name),
                                 threads=_threads,
-                                stride=_strides,
+                                stride=_stride,
                                 keycount=key_count,
                                 host=cassandra.get_host_address(0),
                                 localdc="datacenter1")
@@ -261,10 +261,10 @@ def run(site: str,
                 main_cmd = RunCommand \
                     .from_options(**main_options) \
                     .logs_dir(nb.data()) \
-                    .log_histograms(nb.data(f"/histograms.csv:{histogram_filter}")) \
-                    .log_histostats(nb.data(f"/histostats.csv:{histogram_filter}")) \
-                    .report_summary_to(nb.data("/summary.txt")) \
-                    .report_csv_to(nb.data("/csv")) \
+                    .log_histograms(nb.data(f"histograms.csv:{histogram_filter}")) \
+                    .log_histostats(nb.data(f"histostats.csv:{histogram_filter}")) \
+                    .report_summary_to(nb.data("summary.txt")) \
+                    .report_csv_to(nb.data("csv")) \
                     .report_interval(report_interval)
 
                 main_cmds.append((host, main_cmd))
@@ -291,7 +291,7 @@ def run(site: str,
                     _client_dstat_path = _client_path / client.address / "dstat"
                     _client_dstat_path.mkdir(parents=True, exist_ok=True)
 
-                    for _dstat_file in _dstat_dir.rglob("*-dstat.csv"):
+                    for _dstat_file in _dstat_dir.glob("**/*-dstat.csv"):
                         shutil.copy2(_dstat_file, _client_dstat_path / _dstat_file.name)
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")
@@ -308,7 +308,7 @@ def run(site: str,
                     _host_dstat_path = _host_path / host.address / "dstat"
                     _host_dstat_path.mkdir(parents=True, exist_ok=True)
 
-                    for _dstat_file in _dstat_dir.rglob("*-dstat.csv"):
+                    for _dstat_file in _dstat_dir.glob("**/*-dstat.csv"):
                         shutil.copy2(_dstat_file, _host_dstat_path / _dstat_file.name)
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")

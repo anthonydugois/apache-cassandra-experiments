@@ -182,7 +182,8 @@ class NoSQLBench:
         return f"{self.remote_container_conf_path}/{workload_dir}/{name}"
 
     def data(self, path=""):
-        return f"{self.remote_container_data_path}{path}"
+        sep = "/" if len(path) > 0 else ""
+        return f"{self.remote_container_data_path}{sep}{path}"
 
     def sync_results(self, basepath: Union[str, pathlib.Path], hosts: Optional[list[en.Host]] = None):
         if isinstance(basepath, str):
