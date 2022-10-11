@@ -14,12 +14,14 @@ from util.infer import MeanRateInference
 
 ROOT = Path(__file__).parent
 
+BASENAME = f"{ROOT.name}.{datetime.now().isoformat(timespec='seconds')}"
+
 DEFAULT_JOB_NAME = "cassandra"
 DEFAULT_SITE = "nancy"
 DEFAULT_CLUSTER = "gros"
 DEFAULT_ENV_NAME = "debian11-x64-min"
 DEFAULT_WALLTIME = "00:30:00"
-DEFAULT_OUTPUT = str(ROOT / "output" / f"{ROOT.name}.{datetime.now().isoformat(timespec='seconds')}")
+DEFAULT_OUTPUT = str(ROOT / "output" / BASENAME)
 DEFAULT_INFER_FROM = 0
 DEFAULT_RAMPUP_RATE = 50_000
 DEFAULT_REPORT_INTERVAL = 30
@@ -365,7 +367,10 @@ if __name__ == "__main__":
 
     log_options = dict(level=logging.INFO, format="%(asctime)s %(levelname)s : %(message)s")
     if args.log is not None:
-        log_options["filename"] = args.log
+        log_path = Path(args.log)
+        log_path.mkdir(parents=True, exist_ok=True)
+
+        log_options["filename"] = str(log_path / f"{BASENAME}.log")
     else:
         log_options["stream"] = stdout
 
