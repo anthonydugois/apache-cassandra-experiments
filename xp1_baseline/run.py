@@ -143,7 +143,10 @@ def run(site: str,
         ops_per_client = _ops / _clients
 
         # Infer saturating throughput
-        sat_throughput = infer_throughput(parameters, _throughput_ref, _raw_path, infer_from)
+        sat_throughput = infer_throughput(parameters=parameters,
+                                          ref_id=_throughput_ref,
+                                          basepath=_raw_path,
+                                          start_time=infer_from)
 
         # Compute real throughput on each client
         throughput_per_client = 0
