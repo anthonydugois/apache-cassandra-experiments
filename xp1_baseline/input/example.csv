@@ -1,5 +1,5 @@
 id,name,repeat,version,hosts,clients,threads,stride,ops,throughput,throughput_ref,rf,value_size_in_bytes,bytes_per_host,docker_image,config_file,driver_config_file,workload_file
-r1,first,2,base,2,1,360,1000,10000,1,NA,2,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,main.yaml
-r2,second,2,base,2,1,360,1000,10000,0.8,r1,2,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,main.yaml
-r3,third,2,base,2,1,360,1000,10000,1,NA,2,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,main.yaml
-r4,fourth,2,base,2,1,360,1000,10000,0.8,r3,2,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,main.yaml
+s1,set-1,2,base,3,2,100,1000,10000,1,NA,3,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,main.yaml
+s2,set-2,2,base,3,2,100,1000,10000,0.8,s1,3,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,main.yaml
+s3,set-3,2,base,3,2,100,1000,10000,1,NA,3,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,main.yaml
+s4,set-4,2,base,3,2,100,1000,10000,0.8,s3,3,1000,100000000,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,main.yaml
