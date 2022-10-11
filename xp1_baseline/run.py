@@ -341,7 +341,6 @@ if __name__ == "__main__":
     from enoslib.config import set_config
 
     set_config(ansible_stdout="noop")
-    logging.basicConfig(stream=stdout, level=logging.INFO, format="%(asctime)s %(levelname)s : %(message)s")
 
     parser = argparse.ArgumentParser()
 
@@ -360,8 +359,17 @@ if __name__ == "__main__":
     parser.add_argument("--id", type=str, action="append", default=None)
     parser.add_argument("--from-id", type=str, default=None)
     parser.add_argument("--to-id", type=str, default=None)
+    parser.add_argument("--log", type=str, default=None)
 
     args = parser.parse_args()
+
+    log_options = dict(level=logging.INFO, format="%(asctime)s %(levelname)s : %(message)s")
+    if args.log is not None:
+        log_options["filename"] = args.log
+    else:
+        log_options["stream"] = stdout
+
+    logging.basicConfig(**log_options)
 
     parameters = pd.read_csv(args.input, index_col="id")
 
