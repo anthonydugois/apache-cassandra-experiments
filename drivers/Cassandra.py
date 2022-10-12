@@ -72,7 +72,7 @@ class Cassandra:
 
             remote_root_path = "/root/cassandra"
             remote_conf_path = f"{remote_root_path}/{conf_dir}"
-            remote_data_path = f"/root/storage-data"
+            remote_data_path = f"/tmp/storage-data"  # Warning: make sure there is enough space on disk
 
             host.extra.update(remote_root_path=remote_root_path)
             host.extra.update(remote_conf_path=remote_conf_path)
