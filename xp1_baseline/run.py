@@ -30,6 +30,10 @@ DEFAULT_DSTAT_OPTIONS = "-Tcmdns"
 
 DSTAT_SLEEP_IN_SEC = 5
 
+RAMPUP_MODE_ALWAYS = "always"
+RAMPUP_MODE_KEEP_BETWEEN_SETS = "keep_between_sets"
+RAMPUP_MODE_KEEP_BETWEEN_RUNS = "keep_between_runs"
+
 
 def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: Path, start_time: int):
     if not pd.isna(ref_id):
@@ -188,9 +192,9 @@ def run(site: str,
 
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
 
-            should_rampup = (_rampup_mode == "always"
-                             or (_rampup_mode == "keep_set" and rampup_done["set"] is None)
-                             or (_rampup_mode == "keep_run" and rampup_done["run"] is None))
+            should_rampup = (_rampup_mode == RAMPUP_MODE_ALWAYS
+                             or (_rampup_mode == RAMPUP_MODE_KEEP_BETWEEN_SETS and rampup_done["set"] is None)
+                             or (_rampup_mode == RAMPUP_MODE_KEEP_BETWEEN_RUNS and rampup_done["run"] is None))
 
             logging.info(f"rampup_mode={_rampup_mode},set={rampup_done['set']},run={rampup_done['run']};"
                          f" will{' not' if not should_rampup else ''} rampup.")
