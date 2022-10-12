@@ -213,6 +213,7 @@ def run(site: str,
                                   driverconfig=nb.driver(nb_driver_config_file.name),
                                   threads=1,
                                   rf=rf,
+                                  errors="warn,retry",
                                   host=cassandra.get_host_address(0),
                                   localdc="datacenter1")
 
@@ -232,6 +233,7 @@ def run(site: str,
                                   stride=_stride,
                                   keycount=key_count,
                                   valuesize=_value_size_in_bytes,
+                                  errors="warn,retry",
                                   host=cassandra.get_host_address(0),
                                   localdc="datacenter1")
 
@@ -251,6 +253,7 @@ def run(site: str,
                                 threads=_threads,
                                 stride=_stride,
                                 keycount=key_count,
+                                errors="timer",
                                 host=cassandra.get_host_address(0),
                                 localdc="datacenter1")
 
