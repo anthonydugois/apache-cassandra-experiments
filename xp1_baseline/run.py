@@ -114,6 +114,7 @@ def run(site: str,
     resources.acquire(with_docker="nodes")
 
     # Run experiments
+    rampup_done = {"set": None, "run": None}
     for _id, params in filtered_parameters.iterrows():
         _name = params["name"]
         _repeat = params["repeat"]
@@ -128,6 +129,7 @@ def run(site: str,
         _rf = params["rf"]
         _value_size_in_bytes = params["value_size_in_bytes"]
         _bytes_per_host = params["bytes_per_host"]
+        _rampup_mode = params["rampup_mode"]
         _docker_image = params["docker_image"]
         _config_file = params["config_file"]
         _driver_config_file = params["driver_config_file"]
@@ -179,22 +181,16 @@ def run(site: str,
         input_row = parameters[parameters.index == _id]
         input_row.to_csv(_set_path / "input.csv")
 
+        rampup_done["run"] = None
         for run_index in range(_repeat):
             _run_path = _set_path / f"run-{run_index}"
             _run_path.mkdir(parents=True, exist_ok=True)
 
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
 
-            # Deploy and start Cassandra
-            cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
-
-            cassandra.init(cassandra_hosts)
-            cassandra.create_config(cassandra_config_file)
-            cassandra.create_extra_config([cassandra_config_path / "jvm-server.options",
-                                           cassandra_config_path / "jvm11-server.options"])
-            cassandra.deploy_and_start()
-
-            logging.info(cassandra.nodetool("status"))
+            should_rampup = (_rampup_mode == "always"
+                             or (_rampup_mode == "keep_set" and rampup_done["set"] is None)
+                             or (_rampup_mode == "keep_run" and rampup_done["run"] is None))
 
             # Deploy NoSQLBench
             nb = NoSQLBench(name="nb",
@@ -205,41 +201,56 @@ def run(site: str,
             nb.init(nb_hosts)
             nb.deploy()
 
-            # Create schema
-            schema_options = dict(driver="cqld4",
-                                  workload=nb.workload(nb_workload_file.name),
-                                  alias=ROOT.name,
-                                  tags="block:schema",
-                                  driverconfig=nb.driver(nb_driver_config_file.name),
-                                  threads=1,
-                                  rf=rf,
-                                  errors="warn,retry",
-                                  host=cassandra.get_host_address(0),
-                                  localdc="datacenter1")
+            # Deploy and start Cassandra
+            cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
 
-            schema_cmd = RunCommand.from_options(**schema_options)
+            cassandra.init(cassandra_hosts, reset=should_rampup)
+            cassandra.create_config(cassandra_config_file)
+            cassandra.create_extra_config([cassandra_config_path / "jvm-server.options",
+                                           cassandra_config_path / "jvm11-server.options"])
+            cassandra.deploy_and_start()
 
-            nb.single_command("nb-schema", schema_cmd)
+            logging.info(cassandra.nodetool("status"))
 
-            # Insert data
-            rampup_options = dict(driver="cqld4",
-                                  workload=nb.workload(nb_workload_file.name),
-                                  alias=ROOT.name,
-                                  tags="block:rampup",
-                                  driverconfig=nb.driver(nb_driver_config_file.name),
-                                  threads="auto",
-                                  cycles=key_count,
-                                  cyclerate=rampup_rate,
-                                  stride=_stride,
-                                  keycount=key_count,
-                                  valuesize=_value_size_in_bytes,
-                                  errors="warn,retry",
-                                  host=cassandra.get_host_address(0),
-                                  localdc="datacenter1")
+            if should_rampup:
+                # Create schema
+                schema_options = dict(driver="cqld4",
+                                      workload=nb.workload(nb_workload_file.name),
+                                      alias=ROOT.name,
+                                      tags="block:schema",
+                                      driverconfig=nb.driver(nb_driver_config_file.name),
+                                      threads=1,
+                                      rf=rf,
+                                      errors="warn,retry",
+                                      host=cassandra.get_host_address(0),
+                                      localdc="datacenter1")
 
-            rampup_cmd = RunCommand.from_options(**rampup_options)
+                schema_cmd = RunCommand.from_options(**schema_options)
 
-            nb.single_command("nb-rampup", rampup_cmd)
+                nb.single_command("nb-schema", schema_cmd)
+
+                # Insert data
+                rampup_options = dict(driver="cqld4",
+                                      workload=nb.workload(nb_workload_file.name),
+                                      alias=ROOT.name,
+                                      tags="block:rampup",
+                                      driverconfig=nb.driver(nb_driver_config_file.name),
+                                      threads="auto",
+                                      cycles=key_count,
+                                      cyclerate=rampup_rate,
+                                      stride=_stride,
+                                      keycount=key_count,
+                                      valuesize=_value_size_in_bytes,
+                                      errors="warn,retry",
+                                      host=cassandra.get_host_address(0),
+                                      localdc="datacenter1")
+
+                rampup_cmd = RunCommand.from_options(**rampup_options)
+
+                nb.single_command("nb-rampup", rampup_cmd)
+
+                rampup_done["set"] = _id
+                rampup_done["run"] = run_index
 
             logging.info(cassandra.nodetool("tablestats baselines.keyvalue"))
             logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))

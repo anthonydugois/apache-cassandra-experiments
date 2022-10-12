@@ -63,8 +63,8 @@ class Cassandra:
     def build_file_tree(self, conf_dir="conf"):
         for host in self.hosts:
             local_root_path = self.local_global_root_path / host.address
-            local_conf_path = local_root_path / conf_dir
 
+            local_conf_path = local_root_path / conf_dir
             local_conf_path.mkdir(parents=True, exist_ok=True)
 
             host.extra.update(local_root_path=str(local_root_path))
@@ -72,13 +72,16 @@ class Cassandra:
 
             remote_root_path = "/root/cassandra"
             remote_conf_path = f"{remote_root_path}/{conf_dir}"
+            remote_data_path = f"/root/storage-data"
 
             host.extra.update(remote_root_path=remote_root_path)
             host.extra.update(remote_conf_path=remote_conf_path)
+            host.extra.update(remote_data_path=remote_data_path)
 
             host.extra.update(remote_container_conf_path="/etc/cassandra")
+            host.extra.update(remote_container_data_path="/var/lib/cassandra")
 
-    def init(self, hosts: list[en.Host], seed_count=1):
+    def init(self, hosts: list[en.Host], seed_count=1, reset=False):
         if len(hosts) <= 0:
             raise MissingHostsException
 
@@ -94,6 +97,14 @@ class Cassandra:
             self.set_not_seeds(not_seeds)
 
         self.build_file_tree()
+
+        if reset:
+            self.reset_data()
+
+    def reset_data(self):
+        with en.actions(roles=self.hosts) as actions:
+            # Remove existing data
+            actions.file(path="{{remote_data_path}}", state="absent")
 
     def create_config(self, template_path: Union[str, pathlib.Path]):
         seed_addresses = ",".join(host_addresses(self.seeds, port=7000))
@@ -128,8 +139,9 @@ class Cassandra:
 
         with en.actions(roles=self.hosts) as actions:
             actions.file(path="{{remote_root_path}}", state="directory")
+            actions.file(path="{{remote_data_path}}", state="directory")
 
-            # Transfer configuration files
+            # Transfer files
             actions.copy(src="{{local_root_path}}/", dest="{{remote_root_path}}")
 
             # Disable the swap memory
@@ -158,6 +170,11 @@ class Cassandra:
                                          {
                                              "source": "{{remote_conf_path}}/jvm11-server.options",
                                              "target": "{{remote_container_conf_path}}/jvm11-server.options",
+                                             "type": "bind"
+                                         },
+                                         {
+                                             "source": "{{remote_data_path}}",
+                                             "target": "{{remote_container_data_path}}",
                                              "type": "bind"
                                          }
                                      ],
@@ -225,16 +242,26 @@ class Cassandra:
 
     def destroy(self):
         """
-        Destroy a Cassandra instance.
+        Destroy a Cassandra instance. Note that this does not remove data.
 
         1. Stop and remove the Cassandra Docker container.
-        2. Remove the configuration files.
-        3. Drop caches.
+        2. Remove the Cassandra configuration files.
+        3. Remove the Cassandra caches.
+        4. Drop OS caches.
         """
 
         with en.actions(roles=self.hosts) as actions:
+            # Stop and remove container
             actions.docker_container(name=self.name, state="absent")
+
+            # Remove Cassandra files
             actions.file(path="{{remote_root_path}}", state="absent")
+
+            # Remove Cassandra caches
+            actions.file(path="{{remote_data_path}}/saved_caches", state="absent")
+            actions.file(path="{{remote_data_path}}/hints", state="absent")
+
+            # Drop OS caches
             actions.shell(cmd="sync && echo 3 > /proc/sys/vm/drop_caches")
 
     def logs(self):
