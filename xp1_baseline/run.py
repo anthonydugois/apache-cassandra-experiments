@@ -192,6 +192,9 @@ def run(site: str,
                              or (_rampup_mode == "keep_set" and rampup_done["set"] is None)
                              or (_rampup_mode == "keep_run" and rampup_done["run"] is None))
 
+            logging.info(f"rampup_mode={_rampup_mode},set={rampup_done['set']},run={rampup_done['run']};"
+                         f" will{' not' if not should_rampup else ''} rampup.")
+
             # Deploy NoSQLBench
             nb = NoSQLBench(name="nb",
                             docker_image="nosqlbench/nosqlbench:nb5preview",
@@ -213,6 +216,8 @@ def run(site: str,
             logging.info(cassandra.nodetool("status"))
 
             if should_rampup:
+                logging.info("Executing rampup phase.")
+
                 # Create schema
                 schema_options = dict(driver="cqld4",
                                       workload=nb.workload(nb_workload_file.name),
