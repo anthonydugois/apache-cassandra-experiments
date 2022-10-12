@@ -24,18 +24,17 @@ class ValueInference:
     def aggregate_run_values(self, values: pd.Series) -> Any:
         pass
 
-    def aggregate_values(self, values: pd.Series) -> Any:
+    def aggregate_set_values(self, values: pd.Series) -> Any:
         pass
 
     def infer(self, csv_file_pattern: str):
         if self.run_paths is None:
             raise Exception
 
-        observed_values = []
+        set_values = []
         for run_path in self.run_paths:
-            csv_values = []
-            csv_files = run_path.glob(csv_file_pattern)
-            for csv_file in csv_files:
+            run_values = []
+            for csv_file in run_path.glob(csv_file_pattern):
                 df = pd.read_csv(csv_file, index_col=False)
                 df = self.filter_dataframe(df)
 
@@ -43,21 +42,21 @@ class ValueInference:
                     logging.warning(f"No significant values found in {csv_file}."
                                     "Provided filter is probably too aggressive.")
                 else:
-                    csv_value = self.reduce_dataframe(df)
-                    csv_values.append(csv_value)
+                    run_value = self.reduce_dataframe(df)
+                    run_values.append(run_value)
 
-            csv_values = pd.Series(csv_values)
-            if csv_values.empty:
+            run_values = pd.Series(run_values)
+            if run_values.empty:
                 logging.warning(f"No value infered from {run_path}.")
             else:
-                observed_value = self.aggregate_run_values(csv_values)
-                observed_values.append(observed_value)
+                set_value = self.aggregate_run_values(run_values)
+                set_values.append(set_value)
 
-        observed_values = pd.Series(observed_values)
-        if observed_values.empty:
+        set_values = pd.Series(set_values)
+        if set_values.empty:
             raise Exception
 
-        return self.aggregate_values(observed_values)
+        return self.aggregate_set_values(set_values)
 
 
 class MeanRateInference(ValueInference):
@@ -76,10 +75,10 @@ class MeanRateInference(ValueInference):
         return df[df["time"] >= self.start_time]
 
     def reduce_dataframe(self, df: pd.DataFrame):
-        return df[self.value_column_name].mean()
+        return df[self.value_column_name].max()
 
     def aggregate_run_values(self, values: pd.Series):
         return values.sum()
 
-    def aggregate_values(self, values: pd.Series):
+    def aggregate_set_values(self, values: pd.Series):
         return values.mean()
