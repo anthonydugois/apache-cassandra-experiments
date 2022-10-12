@@ -36,14 +36,15 @@ class ValueInference:
             run_values = []
             for csv_file in run_path.glob(csv_file_pattern):
                 df = pd.read_csv(csv_file, index_col=False)
-                df = self.filter_dataframe(df)
+                _df = self.filter_dataframe(df)
 
-                if df.empty:
+                if _df.empty:
                     logging.warning(f"No significant values found in {csv_file}."
-                                    "Provided filter is probably too aggressive.")
-                else:
-                    run_value = self.reduce_dataframe(df)
-                    run_values.append(run_value)
+                                    "Provided filter is probably too aggressive; falling back to full dataframe.")
+                    _df = df
+
+                run_value = self.reduce_dataframe(_df)
+                run_values.append(run_value)
 
             run_values = pd.Series(run_values)
             if run_values.empty:
