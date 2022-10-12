@@ -194,7 +194,7 @@ def run(site: str,
                                            cassandra_config_path / "jvm11-server.options"])
             cassandra.deploy_and_start()
 
-            logging.info(cassandra.nodetool("status"))
+            logging.info(cassandra.status("status"))
 
             # Deploy NoSQLBench
             nb = NoSQLBench(name="nb",
@@ -241,7 +241,7 @@ def run(site: str,
 
             nb.single_command("nb-rampup", rampup_cmd)
 
-            logging.info(cassandra.nodetool("tablestats baselines.keyvalue"))
+            logging.info(cassandra.status("tablestats baselines.keyvalue"))
             logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
 
             # Main experiment

@@ -213,7 +213,7 @@ def run(site: str,
                                            cassandra_config_path / "jvm11-server.options"])
             cassandra.deploy_and_start()
 
-            logging.info(cassandra.nodetool("status"))
+            logging.info(cassandra.status())
 
             if should_rampup:
                 logging.info("Executing rampup phase.")
@@ -254,10 +254,14 @@ def run(site: str,
 
                 nb.single_command("nb-rampup", rampup_cmd)
 
+                # Flush memtable to SSTable
+                cassandra.nodetool("flush -- baselines keyvalue")
+
+                # Mark rampup done
                 rampup_done["set"] = _id
                 rampup_done["run"] = run_index
 
-            logging.info(cassandra.nodetool("tablestats baselines.keyvalue"))
+            logging.info(cassandra.tablestats("baselines.keyvalue"))
             logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
 
             # Main experiment

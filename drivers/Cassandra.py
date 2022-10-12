@@ -264,16 +264,27 @@ class Cassandra:
             # Drop OS caches
             actions.shell(cmd="sync && echo 3 > /proc/sys/vm/drop_caches")
 
+    def nodetool(self, command: str, hosts: Optional[list[en.Host]] = None):
+        if hosts is None:
+            hosts = self.hosts
+
+        with en.actions(roles=hosts) as actions:
+            actions.shell(cmd=f"docker exec {self.name} nodetool {command}")
+            results = actions.results
+
+        return results
+
+    def status(self):
+        results = self.nodetool("status", [self.hosts[0]])
+        return results[0].payload["stdout"]
+
+    def tablestats(self, table: str):
+        results = self.nodetool(f"tablestats {table}", [self.hosts[0]])
+        return results[0].payload["stdout"]
+
     def logs(self):
         with en.actions(roles=self.hosts[0]) as actions:
             actions.shell(cmd=f"docker logs {self.name}")
-            results = actions.results
-
-        return results[0].payload["stdout"]
-
-    def nodetool(self, command="status"):
-        with en.actions(roles=self.hosts[0]) as actions:
-            actions.shell(cmd=f"docker exec {self.name} nodetool {command}")
             results = actions.results
 
         return results[0].payload["stdout"]
