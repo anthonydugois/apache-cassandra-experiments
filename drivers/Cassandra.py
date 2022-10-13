@@ -261,8 +261,11 @@ class Cassandra:
             actions.file(path="{{remote_data_path}}/saved_caches", state="absent")
             actions.file(path="{{remote_data_path}}/hints", state="absent")
 
+            # Wait some time to be sure that files are not needed anymore by page cache
+            time.sleep(10)
+
             # Drop OS caches
-            actions.shell(cmd="sync && echo 3 > /proc/sys/vm/drop_caches")
+            actions.shell(cmd="echo 3 > /proc/sys/vm/drop_caches")
 
     def nodetool(self, command: str, hosts: Optional[list[en.Host]] = None):
         if hosts is None:
