@@ -261,6 +261,9 @@ def run(site: str,
                 # Flush memtable to SSTable
                 cassandra.nodetool("flush -- baselines keyvalue")
 
+                # Perform a major compaction
+                cassandra.nodetool("compact")
+
                 # Mark rampup done
                 rampup_done["set"] = _id
                 rampup_done["run"] = run_index
