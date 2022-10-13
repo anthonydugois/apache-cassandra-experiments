@@ -41,7 +41,7 @@ def post(result_path: str,
                     # Process Dstat results
                     for key in ["clients", "hosts"]:
                         _key_path = _run_path / key
-                        for _host_path in _key_path.iterdir():
+                        for _host_path in _key_path.glob("*.grid5000.fr"):
                             _dstat_path = _host_path / "dstat"
                             _dstat_files = list(_dstat_path.glob("**/*-dstat.csv"))
                             if len(_dstat_files) > 0:
@@ -59,7 +59,7 @@ def post(result_path: str,
                     global_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
 
                     _client_path = _run_path / "clients"
-                    for _host_path in _client_path.iterdir():
+                    for _host_path in _client_path.glob("*.grid5000.fr"):
                         # Process timeseries results
                         for ts_file in _host_path.glob("**/*.result.csv"):
                             ts_df = pd.read_csv(ts_file, index_col=False)
