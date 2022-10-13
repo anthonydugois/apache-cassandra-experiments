@@ -82,4 +82,4 @@ class MeanRateInference(ValueInference):
         return values.sum()
 
     def aggregate_set_values(self, values: pd.Series):
-        return values.mean()
+        return values.max()
