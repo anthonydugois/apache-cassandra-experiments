@@ -96,7 +96,7 @@ def post(result_path: str,
                                     hist_index += 1
 
                                 logging.info(f"[{_name}#{_id}/{run_index}/{_host_path.name}]"
-                                             f"{hist_file} ({hist_index}/{hist_count})")
+                                             f" {hist_file} ({hist_index}/{hist_count})")
 
                         client_latency_row = dict(count=hist.get_total_count(),
                                                   min=hist.get_min_value(),
@@ -154,6 +154,9 @@ def post(result_path: str,
 
         with tarfile.open(_archive_path / f"{_result_path.name}.tar.xz", mode="w:xz") as file:
             file.add(_result_path, arcname=_result_path.name)
+
+        with tarfile.open(_archive_path / f"{_result_path.name}-light.tar.xz", mode="w:xz") as file:
+            file.add(_tidy_path, arcname=_result_path.name)
 
 
 if __name__ == "__main__":
