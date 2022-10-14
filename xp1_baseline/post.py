@@ -47,6 +47,7 @@ def post(result_path: str,
                             if len(_dstat_files) > 0:
                                 for _dstat_file in _dstat_files:
                                     dstat_df = pd.read_csv(_dstat_file, skiprows=5, index_col=False)
+                                    dstat_df["time"] = dstat_df["epoch"] - dstat_df.iloc[0]["epoch"]
                                     dstat_df["id"] = _id
                                     dstat_df["run"] = run_index
                                     dstat_df["host_address"] = _host_path.name
@@ -63,7 +64,8 @@ def post(result_path: str,
                         # Process timeseries results
                         for ts_file in _host_path.glob("**/*.result.csv"):
                             ts_df = pd.read_csv(ts_file, index_col=False)
-                            ts_df["time"] = ts_df["t"] - ts_df.iloc[0]["t"]  # Compute relative time
+                            ts_df.rename(columns=dict(t="epoch"), inplace=True)
+                            ts_df["time"] = ts_df["epoch"] - ts_df.iloc[0]["epoch"]
                             ts_df["id"] = _id
                             ts_df["run"] = run_index
                             ts_df["host_address"] = _host_path.name
