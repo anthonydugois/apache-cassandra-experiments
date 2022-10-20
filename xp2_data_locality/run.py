@@ -26,7 +26,7 @@ DEFAULT_INFER_FROM = 0
 DEFAULT_RAMPUP_RATE = 50_000
 DEFAULT_REPORT_INTERVAL = 30
 DEFAULT_HISTOGRAM_FILTER = ".*result:30s"
-DEFAULT_DSTAT_OPTIONS = "-Tcmdns"
+DEFAULT_DSTAT_OPTIONS = "-Tcmdrns --disk-svctm --disk-wait -D total,sda5"
 
 DSTAT_SLEEP_IN_SEC = 5
 
@@ -201,7 +201,7 @@ def run(site: str,
 
             # Deploy NoSQLBench
             nb = NoSQLBench(name="nb",
-                            docker_image="nosqlbench/nosqlbench:nb5preview",
+                            docker_image="adugois1/nosqlbench:latest",
                             driver_path=nb_driver_path,
                             workload_path=nb_workload_path)
 
