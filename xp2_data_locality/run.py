@@ -131,6 +131,7 @@ def run(site: str,
         _throughput = params["throughput"]
         _throughput_ref = params["throughput_ref"]
         _rf = params["rf"]
+        _key_size_in_bytes = params["key_size_in_bytes"]
         _value_size_in_bytes = params["value_size_in_bytes"]
         _bytes_per_host = params["bytes_per_host"]
         _rampup_mode = params["rampup_mode"]
@@ -138,6 +139,7 @@ def run(site: str,
         _config_file = params["config_file"]
         _driver_config_file = params["driver_config_file"]
         _workload_file = params["workload_file"]
+        _workload_parameters = params["workload_parameters"]
 
         logging.info(f"Preparing {_name}#{_id}...")
 
@@ -149,6 +151,12 @@ def run(site: str,
         bytes_total = _hosts * _bytes_per_host / rf
         key_count = round(bytes_total / _value_size_in_bytes)
         ops_per_client = _ops / _clients
+
+        workload_parameters = {}
+        if not pd.isna(_workload_parameters):
+            for parameter in _workload_parameters.split(","):
+                _parameter = parameter.split("=")
+                workload_parameters[_parameter[0]] = _parameter[1]
 
         # Infer saturating throughput
         sat_throughput = infer_throughput(parameters=parameters,
@@ -248,11 +256,14 @@ def run(site: str,
                                       cycles=key_count,
                                       cyclerate=rampup_rate,
                                       stride=_stride,
-                                      keycount=key_count,
+                                      keysize=_key_size_in_bytes,
                                       valuesize=_value_size_in_bytes,
                                       errors="warn,retry",
                                       host=cassandra.get_host_address(0),
                                       localdc="datacenter1")
+
+                for param_key in workload_parameters:
+                    rampup_options[param_key] = workload_parameters[param_key]
 
                 rampup_cmd = RunCommand.from_options(**rampup_options)
 
@@ -280,9 +291,13 @@ def run(site: str,
                                 threads=_threads,
                                 stride=_stride,
                                 keycount=key_count,
+                                keysize=_key_size_in_bytes,
                                 errors="timer",
                                 host=cassandra.get_host_address(0),
                                 localdc="datacenter1")
+
+            for param_key in workload_parameters:
+                main_options[param_key] = workload_parameters[param_key]
 
             if throughput_per_client > 0:
                 main_options["cyclerate"] = throughput_per_client

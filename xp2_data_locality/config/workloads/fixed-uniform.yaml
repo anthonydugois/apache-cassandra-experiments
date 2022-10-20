@@ -5,9 +5,9 @@ scenarios:
     main: run driver=cqld4 tags==block:main-read threads=auto cycles===TEMPLATE(main-cycles,1000)
 
 bindings:
-  fixed_size_key: Mod(TEMPLATE(keycount,1000)); Hash(); ToString() -> String
-  fixed_size_value: CharBufImage("a-zA-Z0-9", 100000, TEMPLATE(valuesize,1000)); ToString() -> String
-  uniform_key: Uniform(0, TEMPLATE(keycount,1000)); Hash(); ToString() -> String
+  fixed_size_key: Pad("0", TEMPLATE(keysize,16)); ToString() -> String
+  fixed_size_value: CharBufImage("a-zA-Z0-9", 100000, TEMPLATE(valuesize,1024)); ToString() -> String
+  uniform_key: Uniform(0, TEMPLATE(keycount,1000)); Pad("0", TEMPLATE(keysize,16)); ToString() -> String
 
 blocks:
   schema:
