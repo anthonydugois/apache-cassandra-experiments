@@ -1,4 +1,0 @@
-id,name,repeat,version,hosts,clients,threads,stride,ops,throughput,throughput_ref,rf,value_size_in_bytes,bytes_per_host,docker_image,config_file,driver_config_file,workload_file
-s1,baseline,3,se,6,1,256,1000,100000000,1,NA,3,1000,200000000000,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-zipf.yaml
-s2,ds-0.8,3,se,6,1,256,1000,100000000,0.8,s1,3,1000,200000000000,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-zipf.yaml
-s2,simple-0.8,3,se,6,1,256,1000,100000000,0.8,s1,3,1000,200000000000,adugois1/apache-cassandra-se:latest,cassandra-simple.yaml,main.conf,fixed-zipf.yaml
