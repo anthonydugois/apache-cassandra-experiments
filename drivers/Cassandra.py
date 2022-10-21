@@ -144,6 +144,7 @@ class Cassandra:
         with en.actions(roles=self.hosts) as actions:
             actions.file(path="{{remote_root_path}}", state="directory")
             actions.file(path="{{remote_data_path}}", state="directory")
+            actions.file(path="{{remote_metrics_path}}", state="directory")
 
             # Transfer files
             actions.copy(src="{{local_root_path}}/", dest="{{remote_root_path}}")
