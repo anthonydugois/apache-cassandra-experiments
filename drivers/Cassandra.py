@@ -72,14 +72,18 @@ class Cassandra:
 
             remote_root_path = "/root/cassandra"
             remote_conf_path = f"{remote_root_path}/{conf_dir}"
-            remote_data_path = f"/tmp/storage-data"  # Warning: make sure there is enough space on disk
+
+            remote_data_path = "/tmp/storage-data"  # Warning: make sure there is enough space on disk
+            remote_metrics_path = "/tmp/metrics-data/metrics"
 
             host.extra.update(remote_root_path=remote_root_path)
             host.extra.update(remote_conf_path=remote_conf_path)
             host.extra.update(remote_data_path=remote_data_path)
+            host.extra.update(remote_metrics_path=remote_metrics_path)
 
             host.extra.update(remote_container_conf_path="/etc/cassandra")
             host.extra.update(remote_container_data_path="/var/lib/cassandra")
+            host.extra.update(remote_container_metrics_path="/metrics")
 
     def init(self, hosts: list[en.Host], seed_count=1, reset=False):
         if len(hosts) <= 0:
@@ -173,8 +177,18 @@ class Cassandra:
                                              "type": "bind"
                                          },
                                          {
+                                             "source": "{{remote_conf_path}}/metrics-reporter-config.yaml",
+                                             "target": "{{remote_container_conf_path}}/metrics-reporter-config.yaml",
+                                             "type": "bind"
+                                         },
+                                         {
                                              "source": "{{remote_data_path}}",
                                              "target": "{{remote_container_data_path}}",
+                                             "type": "bind"
+                                         },
+                                         {
+                                             "source": "{{remote_metrics_path}}",
+                                             "target": "{{remote_container_metrics_path}}",
                                              "type": "bind"
                                          }
                                      ],
@@ -261,6 +275,9 @@ class Cassandra:
             actions.file(path="{{remote_data_path}}/saved_caches", state="absent")
             actions.file(path="{{remote_data_path}}/hints", state="absent")
 
+            # Remove Cassandra metrics
+            actions.file(path="{{remote_metrics_path}}", state="absent")
+
             # Wait some time to be sure that files are not needed anymore by page cache
             time.sleep(10)
 
@@ -298,3 +315,22 @@ class Cassandra:
             results = actions.results
 
         return results[0].payload["stdout"]
+
+    def get_metrics(self, basepath: Union[str, pathlib.Path], hosts: Optional[list[en.Host]] = None):
+        if isinstance(basepath, str):
+            basepath = pathlib.Path(basepath)
+
+        # Ensure dest folder exists
+        basepath.mkdir(parents=True, exist_ok=True)
+
+        if hosts is None:
+            hosts = self.hosts
+
+        for host in hosts:
+            local_path = basepath / host.address
+            local_path.mkdir(parents=True, exist_ok=True)
+
+            host.extra.update(local_path=str(local_path))
+
+        with en.actions(roles=hosts) as actions:
+            actions.synchronize(src="{{remote_metrics_path}}", dest="{{local_path}}", mode="pull")

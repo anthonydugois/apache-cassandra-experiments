@@ -322,12 +322,17 @@ def run(site: str,
 
             _tmp_dstat_path = _run_path / "dstat"
             _tmp_data_path = _run_path / "data"
+            _tmp_metrics_path = _run_path / "metrics"
             with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start main experiment
                 nb.command("nb-main", main_cmds)
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Let the system recover before killing Dstat
 
+            # Get NoSQLBench results
             nb.sync_results(_tmp_data_path)
+
+            # Get Cassandra metrics
+            cassandra.get_metrics(_tmp_metrics_path)
 
             # Save results
             _client_path = _run_path / "clients"
@@ -364,11 +369,18 @@ def run(site: str,
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")
 
+                _metrics_dir = _tmp_metrics_path / host.address / "metrics"
+                if _metrics_dir.exists():
+                    shutil.copytree(_metrics_dir, _host_path / host.address / "metrics")
+                else:
+                    logging.warning(f"{_metrics_dir} does not exist.")
+
             with (_host_path / "cassandra.log").open("w") as file:
                 file.write(cassandra.logs())
 
             shutil.rmtree(_tmp_dstat_path)
             shutil.rmtree(_tmp_data_path)
+            shutil.rmtree(_tmp_metrics_path)
 
             logging.info(f"Results have been saved in {_run_path}.")
 

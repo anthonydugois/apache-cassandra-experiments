@@ -1,0 +1,10 @@
+csv:
+  -
+    outdir: '/metrics/csv'
+    period: 1
+    timeunit: 'SECONDS'
+    predicate:
+      color: "white"
+      useQualifiedName: true
+      patterns:
+        - "^org.apache.cassandra.metrics.ThreadPools.PendingTasks.request.ReadStage"
