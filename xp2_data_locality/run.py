@@ -186,6 +186,7 @@ def run(site: str,
         shutil.copy2(cassandra_config_file, _config_path / "cassandra.yaml")
         shutil.copy2(cassandra_config_path / "jvm-server.options", _config_path)
         shutil.copy2(cassandra_config_path / "jvm11-server.options", _config_path)
+        shutil.copy2(cassandra_config_path / "metrics-reporter-config.yaml", _config_path)
         shutil.copy2(nb_driver_config_file, _config_path / "nb-driver.conf")
         shutil.copy2(nb_workload_file, _config_path / "nb-workload.yaml")
 
@@ -222,7 +223,8 @@ def run(site: str,
             cassandra.init(cassandra_hosts, reset=should_rampup)
             cassandra.create_config(cassandra_config_file)
             cassandra.create_extra_config([cassandra_config_path / "jvm-server.options",
-                                           cassandra_config_path / "jvm11-server.options"])
+                                           cassandra_config_path / "jvm11-server.options",
+                                           cassandra_config_path / "metrics-reporter-config.yaml"])
             cassandra.deploy_and_start()
 
             logging.info(cassandra.status())
