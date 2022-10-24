@@ -175,7 +175,12 @@ def run(site: str,
         for run_index in range(_repeat):
             filetree.define([
                 {"path": f"@{_name}/run-{run_index}", "tags": [f"{_name}-{run_index}"]},
-                {"path": f"@{_name}-{run_index}/tmp", "tags": [f"{_name}-{run_index}__tmp"]}
+                {"path": f"@{_name}-{run_index}/tmp", "tags": [f"{_name}-{run_index}__tmp"]},
+                {"path": f"@{_name}-{run_index}__tmp/dstat", "tags": [f"{_name}-{run_index}__dstat"]},
+                {"path": f"@{_name}-{run_index}__tmp/data", "tags": [f"{_name}-{run_index}__data"]},
+                {"path": f"@{_name}-{run_index}__tmp/metrics", "tags": [f"{_name}-{run_index}__metrics"]},
+                {"path": f"@{_name}-{run_index}/clients", "tags": [f"{_name}-{run_index}__clients"]},
+                {"path": f"@{_name}-{run_index}/hosts", "tags": [f"{_name}-{run_index}__hosts"]}
             ]).build()
 
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
@@ -306,9 +311,9 @@ def run(site: str,
 
                 main_cmds.append((host, main_cmd))
 
-            _tmp_dstat_path = filetree.path(f"{_name}-{run_index}__tmp") / "dstat"
-            _tmp_data_path = filetree.path(f"{_name}-{run_index}__tmp") / "data"
-            _tmp_metrics_path = filetree.path(f"{_name}-{run_index}__tmp") / "metrics"
+            _tmp_dstat_path = filetree.path(f"{_name}-{run_index}__dstat")
+            _tmp_data_path = filetree.path(f"{_name}-{run_index}__data")
+            _tmp_metrics_path = filetree.path(f"{_name}-{run_index}__metrics")
             with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start main experiment
 
@@ -326,11 +331,8 @@ def run(site: str,
             cassandra.get_metrics(_tmp_metrics_path)
 
             # Save results
-            _client_path = filetree.path(f"{_name}-{run_index}__tmp") / "clients"
-            _client_path.mkdir(parents=True, exist_ok=True)
-
-            _host_path = filetree.path(f"{_name}-{run_index}__tmp") / "hosts"
-            _host_path.mkdir(parents=True, exist_ok=True)
+            _client_path = filetree.path(f"{_name}-{run_index}__clients")
+            _host_path = filetree.path(f"{_name}-{run_index}__hosts")
 
             for client in nb.hosts:
                 _dstat_dir = _tmp_dstat_path / client.address
@@ -369,11 +371,7 @@ def run(site: str,
             with (_host_path / "cassandra.log").open("w") as file:
                 file.write(cassandra.logs())
 
-            shutil.rmtree(_tmp_dstat_path)
-            shutil.rmtree(_tmp_data_path)
-            shutil.rmtree(_tmp_metrics_path)
-
-            # logging.info(f"Results have been saved in {filetree.path(f"{_name}-{run_index}__tmp")}.")
+            filetree.remove(f"{_name}-{run_index}__tmp")
 
             # Destroy instances
             logging.info("Destroying instances.")
