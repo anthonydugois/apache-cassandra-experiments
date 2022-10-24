@@ -158,7 +158,7 @@ def post(result_path: str,
             file.add(_result_path, arcname=_result_path.name)
 
         with tarfile.open(_archive_path / f"{_result_path.name}-light.tar.xz", mode="w:xz") as file:
-            file.add(f"{_result_path.name}-light", arcname=_result_path.name)
+            file.add(_tidy_path, arcname=f"{_result_path.name}-light")
 
 
 if __name__ == "__main__":
