@@ -1,5 +1,5 @@
-id,name,repeat,version,hosts,clients,threads,stride,ops,throughput,throughput_ref,rf,key_size_in_bytes,value_size_in_bytes,bytes_per_host,rampup_mode,docker_image,config_file,driver_config_file,workload_file,workload_parameters
-s1,baseline,2,se,3,1,256,1000,1000000,1,NA,3,16,1024,100000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-uniform.yaml,NA
-s2,uniform-ds-0.8,1,se,3,1,256,1000,1000000,0.8,s1,3,16,1024,100000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-uniform.yaml,NA
-s3,zipf-0.25-ds-0.8,1,se,3,1,256,1000,1000000,0.8,s1,3,16,1024,100000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-zipf.yaml,zipf=0.25
-s4,zipf-0.99-ds-0.8,1,se,3,1,256,1000,1000000,0.8,s1,3,16,1024,100000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-zipf.yaml,zipf=0.99
+id,name,repeat,version,hosts,clients,threads,stride,ops,throughput,throughput_ref,rf,key_size_in_bytes,value_size_in_bytes,bytes_per_host,rampup,docker_image,config_file,driver_config_file,workload_file,workload_parameters
+s1,baseline,1,se,3,1,256,1000,1000000,1,NA,3,16,1024,100000000,yes,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-uniform.yaml,NA
+s2,uniform-ds,1,se,3,1,256,1000,1000000,0.8,s1,3,16,1024,100000000,no,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-uniform.yaml,NA
+s3,small-zipf-ds,1,se,3,1,256,1000,1000000,0.8,s1,3,16,1024,100000000,no,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-zipf.yaml,zipf=0.25
+s4,big-zipf-ds,1,se,3,1,256,1000,1000000,0.8,s1,3,16,1024,100000000,no,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-zipf.yaml,zipf=0.99

@@ -39,10 +39,6 @@ DEFAULT_DSTAT_OPTIONS = "-Tcmdrns -D total,sda5"
 
 DSTAT_SLEEP_IN_SEC = 5
 
-RAMPUP_MODE_ALWAYS = "always"
-RAMPUP_MODE_KEEP_BETWEEN_SETS = "keep_between_sets"
-RAMPUP_MODE_KEEP_BETWEEN_RUNS = "keep_between_runs"
-
 
 def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: Path, start_time: int):
     if not pd.isna(ref_id):
@@ -97,7 +93,6 @@ def run(site: str,
     resources.acquire(with_docker="nodes")
 
     # Run experiments
-    rampup_done = {"set": None, "run": None}
     for _id, params in filtered_parameters.iterrows():
         _name = params["name"]
         _repeat = params["repeat"]
@@ -113,7 +108,7 @@ def run(site: str,
         _key_size_in_bytes = params["key_size_in_bytes"]
         _value_size_in_bytes = params["value_size_in_bytes"]
         _bytes_per_host = params["bytes_per_host"]
-        _rampup_mode = params["rampup_mode"]
+        _rampup = params["rampup"]
         _docker_image = params["docker_image"]
         _config_file = params["config_file"]
         _driver_config_file = params["driver_config_file"]
@@ -126,6 +121,8 @@ def run(site: str,
             {"path": f"@raw/{_name}", "tags": ["set", _name]},
             {"path": f"@{_name}/conf", "tags": [f"{_name}__conf"]}
         ]).build()
+
+        should_rampup = _rampup == "yes"
 
         rf = min(_rf, _hosts)
         bytes_total = _hosts * _bytes_per_host / rf
@@ -171,7 +168,6 @@ def run(site: str,
         input_row = parameters[parameters.index == _id]
         input_row.to_csv(filetree.path(_name) / "input.csv")
 
-        rampup_done["run"] = None
         for run_index in range(_repeat):
             filetree.define([
                 {"path": f"@{_name}/run-{run_index}", "tags": [f"{_name}-{run_index}"]},
@@ -184,13 +180,6 @@ def run(site: str,
             ]).build()
 
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
-
-            should_rampup = (_rampup_mode == RAMPUP_MODE_ALWAYS
-                             or (_rampup_mode == RAMPUP_MODE_KEEP_BETWEEN_SETS and rampup_done["set"] is None)
-                             or (_rampup_mode == RAMPUP_MODE_KEEP_BETWEEN_RUNS and rampup_done["run"] is None))
-
-            logging.info(f"rampup_mode={_rampup_mode},set={rampup_done['set']},run={rampup_done['run']};"
-                         f" will{' not' if not should_rampup else ''} rampup.")
 
             # Deploy NoSQLBench
             nb = NoSQLBench(docker_image="adugois1/nosqlbench:latest")
@@ -265,10 +254,6 @@ def run(site: str,
 
                 # Perform a major compaction
                 cassandra.nodetool("compact")
-
-                # Mark rampup done
-                rampup_done["set"] = _id
-                rampup_done["run"] = run_index
 
             logging.info(cassandra.tablestats("baselines.keyvalue"))
             logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
