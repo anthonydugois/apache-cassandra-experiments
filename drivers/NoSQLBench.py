@@ -1,8 +1,10 @@
 import logging
-import pathlib
+from pathlib import Path
 from typing import Optional, Union
 
 import enoslib as en
+
+from drivers.Driver import Driver
 
 
 class Command:
@@ -81,125 +83,97 @@ class RunCommand(Command):
         return RunCommand().options(**kwargs)
 
 
-class MissingHostsException(Exception):
-    pass
+class NoSQLBench(Driver):
+    def __init__(self, docker_image: str):
+        super().__init__()
 
-
-class NoSQLBench:
-    def __init__(self, name: str, docker_image: str, driver_path: Union[str, pathlib.Path],
-                 workload_path: Union[str, pathlib.Path]):
-        self.name = name
         self.docker_image = docker_image
-        self.driver_path = driver_path
-        self.workload_path = workload_path
 
-        self.remote_root_path = "/root/nosqlbench"
-        self.remote_conf_path = f"{self.remote_root_path}/conf"
-        self.remote_data_path = f"{self.remote_root_path}/data"
-        self.remote_container_conf_path = "/etc/nosqlbench"
-        self.remote_container_data_path = "/var/lib/nosqlbench"
-
-        self.hosts = None
-
-    @property
-    def host_count(self):
-        return len(self.hosts) if self.hosts is not None else 0
-
-    def set_hosts(self, hosts: list[en.Host]):
-        self.hosts = hosts
-
-    def init(self, hosts: list[en.Host]):
-        if len(hosts) <= 0:
-            raise MissingHostsException
-
+    def deploy(self, hosts: list[en.Host]):
         self.set_hosts(hosts)
 
-    def deploy(self):
-        with en.actions(roles=self.hosts) as actions:
-            actions.file(path=self.remote_root_path, state="directory")
-            actions.file(path=self.remote_conf_path, state="directory")
-            actions.file(path=self.remote_data_path, state="directory")
+        self.create_filetree("remote", [
+            {"path": "/root/nosqlbench", "tags": ["root"]},
+            {"path": "@root/conf", "tags": ["conf"]},
+            {"path": "@conf/driver", "tags": ["driver-conf"]},
+            {"path": "@conf/workload", "tags": ["workload-conf"]},
+            {"path": "@root/data", "tags": ["data"]}
+        ])
 
-            actions.copy(src=str(self.driver_path), dest=self.remote_conf_path)
-            actions.copy(src=str(self.workload_path), dest=self.remote_conf_path)
+        self.create_filetree("remote_container", [
+            {"path": "/etc/nosqlbench", "tags": ["conf"]},
+            {"path": "@conf/driver", "tags": ["driver-conf"]},
+            {"path": "@conf/workload", "tags": ["workload-conf"]},
+            {"path": "/var/lib/nosqlbench", "tags": ["data"]}
+        ])
 
-            actions.docker_image(name=self.docker_image, source="pull")
+        for host in self.hosts:
+            host.extra.update(remote_conf_path=str(self.filetree("remote").path("conf")))
+            host.extra.update(remote_data_path=str(self.filetree("remote").path("data")))
 
-        logging.info("NoSQLBench has been deployed. Ready to benchmark.")
+            host.extra.update(remote_container_conf_path=str(self.filetree("remote_container").path("conf")))
+            host.extra.update(remote_container_data_path=str(self.filetree("remote_container").path("data")))
+
+        self.create_mount_point("conf", source="{{remote_conf_path}}", target="{{remote_container_conf_path}}")
+        self.create_mount_point("data", source="{{remote_data_path}}", target="{{remote_container_data_path}}")
+
+        self.filetree("remote").build(remote=self.hosts)
+
+        logging.info("NoSQLBench has been deployed.")
 
     def destroy(self):
-        with en.actions(roles=self.hosts) as actions:
-            actions.file(path=self.remote_root_path, state="absent")
+        self.filetree("remote").remove("root", remote=self.hosts)
 
-    def command(self, name: str, cmds: list[tuple[en.Host, Union[str, Command]]]):
+    def command(self, name: str,
+                commands: list[tuple[en.Host, Union[str, Command]]],
+                driver_path: Path,
+                workload_path: Path):
         hosts = []
+        for host, command in commands:
+            if isinstance(command, Command):
+                command = str(command)
 
-        for host, cmd in cmds:
-            if isinstance(cmd, Command):
-                cmd = str(cmd)
+            host.extra.update(command=command)
 
-            host.extra.update(current_command=cmd)
             hosts.append(host)
 
-            logging.info(f"[{host.address}] Running command `{cmd}`.")
+            logging.info(f"[{host.address}] Running command `{command}`.")
+
+        self.filetree("remote").copy([driver_path], "driver-conf", remote=hosts)
+        self.filetree("remote").copy([workload_path], "workload-conf", remote=hosts)
 
         with en.actions(roles=hosts) as actions:
             actions.docker_container(name=name,
                                      image=self.docker_image,
                                      detach="no",
                                      network_mode="host",
-                                     mounts=[
-                                         {
-                                             "source": self.remote_conf_path,
-                                             "target": self.remote_container_conf_path,
-                                             "type": "bind"
-                                         },
-                                         {
-                                             "source": self.remote_data_path,
-                                             "target": self.remote_container_data_path,
-                                             "type": "bind"
-                                         }
-                                     ],
-                                     command="{{current_command}}")
+                                     mounts=self.mounts(),
+                                     command="{{command}}")
 
             actions.docker_container(name=name, state="absent")
 
         for host in hosts:
-            host.extra.update(current_command=None)
+            host.extra.update(command=None)
 
-    def single_command(self, name: str, cmd: Union[str, Command], host: Optional[en.Host] = None):
+    def single_command(self, name: str,
+                       command: Union[str, Command],
+                       driver_path: Path,
+                       workload_path: Path,
+                       host: Optional[en.Host] = None):
         if host is None:
             host = self.hosts[0]
 
-        self.command(name, [(host, cmd)])
+        self.command(name, [(host, command)], driver_path, workload_path)
 
-    def driver(self, name: str):
-        driver_dir = pathlib.Path(self.driver_path).name
-        return f"{self.remote_container_conf_path}/{driver_dir}/{name}"
-
-    def workload(self, name: str):
-        workload_dir = pathlib.Path(self.workload_path).name
-        return f"{self.remote_container_conf_path}/{workload_dir}/{name}"
-
-    def data(self, path=""):
-        sep = "/" if len(path) > 0 else ""
-        return f"{self.remote_container_data_path}{sep}{path}"
-
-    def sync_results(self, basepath: Union[str, pathlib.Path], hosts: Optional[list[en.Host]] = None):
-        if isinstance(basepath, str):
-            basepath = pathlib.Path(basepath)
-
-        # Ensure dest folder exists
-        basepath.mkdir(parents=True, exist_ok=True)
-
+    def pull_results(self, basepath: Path, hosts: Optional[list[en.Host]] = None):
         if hosts is None:
             hosts = self.hosts
 
         for host in hosts:
-            local_path = basepath / host.address
-            local_path.mkdir(parents=True, exist_ok=True)
+            local_data_path = basepath / host.address
+            local_data_path.mkdir(parents=True, exist_ok=True)
 
-            host.extra.update(local_path=str(local_path))
+            host.extra.update(local_data_path=str(local_data_path))
 
         with en.actions(roles=hosts) as actions:
-            actions.synchronize(src=self.remote_data_path, dest="{{local_path}}", mode="pull")
+            actions.synchronize(src="{{remote_data_path}}", dest="{{local_data_path}}", mode="pull")

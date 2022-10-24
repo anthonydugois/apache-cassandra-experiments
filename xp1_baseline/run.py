@@ -312,7 +312,7 @@ def run(site: str,
                 nb.command("nb-main", main_cmds)
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Let the system recover before killing Dstat
 
-            nb.sync_results(_tmp_data_path)
+            nb.pull_results(_tmp_data_path)
 
             # Save results
             _client_path = _run_path / "clients"

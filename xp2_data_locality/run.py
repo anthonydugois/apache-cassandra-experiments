@@ -11,17 +11,26 @@ from drivers.Cassandra import Cassandra
 from drivers.NoSQLBench import NoSQLBench, RunCommand
 from drivers.Resources import Resources
 from util.infer import MeanRateInference
+from util.filetree import FileTree
 
-ROOT = Path(__file__).parent
+BASENAME = f"xp2.{datetime.now().isoformat(timespec='seconds')}"
 
-BASENAME = f"{ROOT.name}.{datetime.now().isoformat(timespec='seconds')}"
+LOCAL_FILETREE = FileTree().define([
+    {"path": str(Path(__file__).parent), "tags": "root"},
+    {"path": "@root/conf", "tags": "conf"},
+    {"path": "@conf/cassandra", "tags": "cassandra-conf"},
+    {"path": "@conf/driver", "tags": "driver-conf"},
+    {"path": "@conf/workload", "tags": "workload-conf"},
+    {"path": f"@root/input", "tags": "input"},
+    {"path": f"@root/output", "tags": "output"},
+])
 
 DEFAULT_JOB_NAME = "cassandra"
 DEFAULT_SITE = "nancy"
 DEFAULT_CLUSTER = "gros"
 DEFAULT_ENV_NAME = "debian11-x64-min"
 DEFAULT_WALLTIME = "00:30:00"
-DEFAULT_OUTPUT = str(ROOT / "output" / BASENAME)
+DEFAULT_OUTPUT = str(LOCAL_FILETREE.path("output") / BASENAME)
 DEFAULT_INFER_FROM = 0
 DEFAULT_RAMPUP_RATE = 50_000
 DEFAULT_REPORT_INTERVAL = 30
@@ -66,43 +75,13 @@ def run(site: str,
         report_interval=DEFAULT_REPORT_INTERVAL,
         histogram_filter=DEFAULT_HISTOGRAM_FILTER,
         dstat_options=DEFAULT_DSTAT_OPTIONS):
-    """
-    Launch experiment and produce results, organized as following file tree.
+    filetree = FileTree().define([
+        {"path": output_path, "tags": ["root"]},
+        {"path": "@root/raw", "tags": ["raw"]},
+    ]).build()
 
-    output/
-    ├─ xp1_baseline.2022-01-01T00:00:00/            <- Current experiment
-    │  ├─ raw/                                      <- Raw results
-    │  │  ├─ set-0/                                 <- First set of parameters
-    │  │  │  ├─ config/                             <- Config files used in this experiment
-    │  │  │  ├─ run-0/                              <- First run of this experiment
-    │  │  │  │  ├─ clients/                         <- Data related to clients
-    │  │  │  │  │  ├─ gros-1.nancy.grid5000.fr/     <- Data related to client gros-1
-    │  │  │  │  │  │  ├─ data/                      <- NoSQLBench data
-    │  │  │  │  │  │  ├─ dstat/                     <- Dstat data
-    │  │  │  │  │  ├─ gros-2.nancy.grid5000.fr/
-    │  │  │  │  │  │  ├─ ...
-    │  │  │  │  ├─ hosts/
-    │  │  │  │  │  ├─ ...
-    │  │  │  ├─ run-1/
-    │  │  │  │  ├─ ...
-    │  │  │  ├─ run-2/
-    │  │  │  │  ├─ ...
-    │  │  ├─ set-1/
-    │  │  │  ├─ ...
-    │  │  ├─ set-2/
-    │  │  │  ├─ ...
-    │  ├─ input.all.csv
-    │  ├─ input.csv
-    """
-
-    _output_path = Path(output_path)
-    _output_path.mkdir(parents=True, exist_ok=True)
-
-    _raw_path = _output_path / "raw"
-    _raw_path.mkdir(parents=True, exist_ok=True)
-
-    parameters.to_csv(_output_path / "input.all.csv")
-    filtered_parameters.to_csv(_output_path / "input.csv")
+    parameters.to_csv(filetree.path("root") / "input.all.csv")
+    filtered_parameters.to_csv(filetree.path("root") / "input.csv")
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64, which is not usable in
     # the resource driver.
@@ -143,9 +122,10 @@ def run(site: str,
 
         logging.info(f"Preparing {_name}#{_id}...")
 
-        _set_path = _raw_path / _name
-        _config_path = _set_path / "config"
-        _config_path.mkdir(parents=True, exist_ok=True)
+        filetree.define([
+            {"path": f"@raw/{_name}", "tags": ["set", _name]},
+            {"path": f"@{_name}/conf", "tags": [f"{_name}__conf"]}
+        ]).build()
 
         rf = min(_rf, _hosts)
         bytes_total = _hosts * _bytes_per_host / rf
@@ -161,7 +141,7 @@ def run(site: str,
         # Infer saturating throughput
         sat_throughput = infer_throughput(parameters=parameters,
                                           ref_id=_throughput_ref,
-                                          basepath=_raw_path,
+                                          basepath=filetree.path("raw"),
                                           start_time=infer_from)
 
         # Compute real throughput on each client
@@ -174,30 +154,29 @@ def run(site: str,
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
         nb_hosts = resources.roles["clients"][:_clients]
 
-        cassandra_config_path = ROOT / "config" / "cassandra"
-        nb_driver_path = ROOT / "config" / "driver"
-        nb_workload_path = ROOT / "config" / "workloads"
-
-        cassandra_config_file = cassandra_config_path / _config_file
-        nb_driver_config_file = nb_driver_path / _driver_config_file
-        nb_workload_file = nb_workload_path / _workload_file
+        nb_driver_config_file = LOCAL_FILETREE.path("driver-conf") / _driver_config_file
+        nb_workload_file = LOCAL_FILETREE.path("workload-conf") / _workload_file
 
         # Save config
-        shutil.copy2(cassandra_config_file, _config_path / "cassandra.yaml")
-        shutil.copy2(cassandra_config_path / "jvm-server.options", _config_path)
-        shutil.copy2(cassandra_config_path / "jvm11-server.options", _config_path)
-        shutil.copy2(cassandra_config_path / "metrics-reporter-config.yaml", _config_path)
-        shutil.copy2(nb_driver_config_file, _config_path / "nb-driver.conf")
-        shutil.copy2(nb_workload_file, _config_path / "nb-workload.yaml")
+        filetree.copy([
+            LOCAL_FILETREE.path("cassandra-conf") / _config_file,
+            LOCAL_FILETREE.path("cassandra-conf") / "jvm-server.options",
+            LOCAL_FILETREE.path("cassandra-conf") / "jvm11-server.options",
+            LOCAL_FILETREE.path("cassandra-conf") / "metrics-reporter-config.yaml",
+            LOCAL_FILETREE.path("driver-conf") / _driver_config_file,
+            LOCAL_FILETREE.path("workload-conf") / _workload_file
+        ], f"{_name}__conf")
 
         # Save input parameters
         input_row = parameters[parameters.index == _id]
-        input_row.to_csv(_set_path / "input.csv")
+        input_row.to_csv(filetree.path(_name) / "input.csv")
 
         rampup_done["run"] = None
         for run_index in range(_repeat):
-            _run_path = _set_path / f"run-{run_index}"
-            _run_path.mkdir(parents=True, exist_ok=True)
+            filetree.define([
+                {"path": f"@{_name}/run-{run_index}", "tags": [f"{_name}-{run_index}"]},
+                {"path": f"@{_name}-{run_index}/tmp", "tags": [f"{_name}-{run_index}__tmp"]}
+            ]).build()
 
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
 
@@ -209,22 +188,21 @@ def run(site: str,
                          f" will{' not' if not should_rampup else ''} rampup.")
 
             # Deploy NoSQLBench
-            nb = NoSQLBench(name="nb",
-                            docker_image="adugois1/nosqlbench:latest",
-                            driver_path=nb_driver_path,
-                            workload_path=nb_workload_path)
+            nb = NoSQLBench(docker_image="adugois1/nosqlbench:latest")
+            nb.deploy(nb_hosts)
 
-            nb.init(nb_hosts)
-            nb.deploy()
+            nb_driver = nb.filetree("remote_container").path("driver-conf") / nb_driver_config_file.name
+            nb_workload = nb.filetree("remote_container").path("workload-conf") / nb_workload_file.name
+            nb_data = nb.filetree("remote_container").path("data")
 
             # Deploy and start Cassandra
             cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
 
             cassandra.init(cassandra_hosts, reset=should_rampup)
-            cassandra.create_config(cassandra_config_file)
-            cassandra.create_extra_config([cassandra_config_path / "jvm-server.options",
-                                           cassandra_config_path / "jvm11-server.options",
-                                           cassandra_config_path / "metrics-reporter-config.yaml"])
+            cassandra.create_config(LOCAL_FILETREE.path("cassandra-conf") / _config_file)
+            cassandra.create_extra_config([LOCAL_FILETREE.path("cassandra-conf") / "jvm-server.options",
+                                           LOCAL_FILETREE.path("cassandra-conf") / "jvm11-server.options",
+                                           LOCAL_FILETREE.path("cassandra-conf") / "metrics-reporter-config.yaml"])
             cassandra.deploy_and_start()
 
             logging.info(cassandra.status())
@@ -234,10 +212,10 @@ def run(site: str,
 
                 # Create schema
                 schema_options = dict(driver="cqld4",
-                                      workload=nb.workload(nb_workload_file.name),
-                                      alias=ROOT.name,
+                                      workload=nb_workload,
+                                      alias="xp2",
                                       tags="block:schema",
-                                      driverconfig=nb.driver(nb_driver_config_file.name),
+                                      driverconfig=nb_driver,
                                       threads=1,
                                       rf=rf,
                                       errors="warn,retry",
@@ -246,14 +224,17 @@ def run(site: str,
 
                 schema_cmd = RunCommand.from_options(**schema_options)
 
-                nb.single_command("nb-schema", schema_cmd)
+                nb.single_command(name="nb-schema",
+                                  command=schema_cmd,
+                                  driver_path=nb_driver_config_file,
+                                  workload_path=nb_workload_file)
 
                 # Insert data
                 rampup_options = dict(driver="cqld4",
-                                      workload=nb.workload(nb_workload_file.name),
-                                      alias=ROOT.name,
+                                      workload=nb_workload,
+                                      alias="xp2",
                                       tags="block:rampup",
-                                      driverconfig=nb.driver(nb_driver_config_file.name),
+                                      driverconfig=nb_driver,
                                       threads="auto",
                                       cycles=key_count,
                                       cyclerate=rampup_rate,
@@ -269,7 +250,10 @@ def run(site: str,
 
                 rampup_cmd = RunCommand.from_options(**rampup_options)
 
-                nb.single_command("nb-rampup", rampup_cmd)
+                nb.single_command(name="nb-rampup",
+                                  command=rampup_cmd,
+                                  driver_path=nb_driver_config_file,
+                                  workload_path=nb_workload_file)
 
                 # Flush memtable to SSTable
                 cassandra.nodetool("flush -- baselines keyvalue")
@@ -286,10 +270,10 @@ def run(site: str,
 
             # Main experiment
             main_options = dict(driver="cqld4",
-                                workload=nb.workload(nb_workload_file.name),
-                                alias=ROOT.name,
+                                workload=nb_workload,
+                                alias="xp2",
                                 tags="block:main-read",
-                                driverconfig=nb.driver(nb_driver_config_file.name),
+                                driverconfig=nb_driver,
                                 threads=_threads,
                                 stride=_stride,
                                 keycount=key_count,
@@ -313,34 +297,39 @@ def run(site: str,
 
                 main_cmd = RunCommand \
                     .from_options(**main_options) \
-                    .logs_dir(nb.data()) \
-                    .log_histograms(nb.data(f"histograms.csv:{histogram_filter}")) \
-                    .log_histostats(nb.data(f"histostats.csv:{histogram_filter}")) \
-                    .report_summary_to(nb.data("summary.txt")) \
-                    .report_csv_to(nb.data("csv")) \
+                    .logs_dir(nb_data) \
+                    .log_histograms(nb_data / f"histograms.csv:{histogram_filter}") \
+                    .log_histostats(nb_data / f"histostats.csv:{histogram_filter}") \
+                    .report_summary_to(nb_data / "summary.txt") \
+                    .report_csv_to(nb_data / "csv") \
                     .report_interval(report_interval)
 
                 main_cmds.append((host, main_cmd))
 
-            _tmp_dstat_path = _run_path / "dstat"
-            _tmp_data_path = _run_path / "data"
-            _tmp_metrics_path = _run_path / "metrics"
+            _tmp_dstat_path = filetree.path(f"{_name}-{run_index}__tmp") / "dstat"
+            _tmp_data_path = filetree.path(f"{_name}-{run_index}__tmp") / "data"
+            _tmp_metrics_path = filetree.path(f"{_name}-{run_index}__tmp") / "metrics"
             with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start main experiment
-                nb.command("nb-main", main_cmds)
+
+                nb.command(name="nb-main",
+                           commands=main_cmds,
+                           driver_path=nb_driver_config_file,
+                           workload_path=nb_workload_file)
+
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Let the system recover before killing Dstat
 
             # Get NoSQLBench results
-            nb.sync_results(_tmp_data_path)
+            nb.pull_results(_tmp_data_path)
 
             # Get Cassandra metrics
             cassandra.get_metrics(_tmp_metrics_path)
 
             # Save results
-            _client_path = _run_path / "clients"
+            _client_path = filetree.path(f"{_name}-{run_index}__tmp") / "clients"
             _client_path.mkdir(parents=True, exist_ok=True)
 
-            _host_path = _run_path / "hosts"
+            _host_path = filetree.path(f"{_name}-{run_index}__tmp") / "hosts"
             _host_path.mkdir(parents=True, exist_ok=True)
 
             for client in nb.hosts:
@@ -384,7 +373,7 @@ def run(site: str,
             shutil.rmtree(_tmp_data_path)
             shutil.rmtree(_tmp_metrics_path)
 
-            logging.info(f"Results have been saved in {_run_path}.")
+            # logging.info(f"Results have been saved in {filetree.path(f"{_name}-{run_index}__tmp")}.")
 
             # Destroy instances
             logging.info("Destroying instances.")
