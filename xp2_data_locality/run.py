@@ -12,6 +12,7 @@ from drivers.NoSQLBench import NoSQLBench, RunCommand
 from drivers.Resources import Resources
 from util.infer import MeanRateInference
 from util.filetree import FileTree
+from util.input import CSVInput
 
 BASENAME = f"xp2.{datetime.now().isoformat(timespec='seconds')}"
 
@@ -63,8 +64,7 @@ def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: Path, star
 def run(site: str,
         cluster: str,
         settings: dict,
-        parameters: pd.DataFrame,
-        filtered_parameters: pd.DataFrame,
+        csv_input: CSVInput,
         output_path: str,
         rampup_rate=DEFAULT_RAMPUP_RATE,
         infer_from=DEFAULT_INFER_FROM,
@@ -76,13 +76,13 @@ def run(site: str,
         {"path": "@root/raw", "tags": ["raw"]},
     ]).build()
 
-    parameters.to_csv(filetree.path("root") / "input.all.csv")
-    filtered_parameters.to_csv(filetree.path("root") / "input.csv")
+    csv_input.all().to_csv(filetree.path("root") / "input.all.csv")
+    csv_input.view("filtered_sets").to_csv(filetree.path("root") / "input.csv")
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64, which is not usable in
     # the resource driver.
-    max_hosts = int(filtered_parameters["hosts"].max())
-    max_clients = int(filtered_parameters["clients"].max())
+    max_hosts = int(csv_input.column("hosts", key="filtered_sets").max())
+    max_clients = int(csv_input.column("clients", key="filtered_sets").max())
 
     # Acquire G5k resources
     resources = Resources(site=site, cluster=cluster, settings=settings)
@@ -93,7 +93,7 @@ def run(site: str,
     resources.acquire(with_docker="nodes")
 
     # Run experiments
-    for _id, params in filtered_parameters.iterrows():
+    for _id, params in csv_input.view("filtered_sets").iterrows():
         _name = params["name"]
         _repeat = params["repeat"]
         _version = params["version"]
@@ -136,7 +136,7 @@ def run(site: str,
                 workload_parameters[_parameter[0]] = _parameter[1]
 
         # Infer saturating throughput
-        sat_throughput = infer_throughput(parameters=parameters,
+        sat_throughput = infer_throughput(parameters=csv_input.all(),
                                           ref_id=_throughput_ref,
                                           basepath=filetree.path("raw"),
                                           start_time=infer_from)
@@ -165,8 +165,7 @@ def run(site: str,
         ], f"{_name}__conf")
 
         # Save input parameters
-        input_row = parameters[parameters.index == _id]
-        input_row.to_csv(filetree.path(_name) / "input.csv")
+        csv_input.filter([_id]).to_csv(filetree.path(_name) / "input.csv")
 
         for run_index in range(_repeat):
             filetree.define([
@@ -408,27 +407,8 @@ if __name__ == "__main__":
 
     logging.basicConfig(**log_options)
 
-    parameters = pd.read_csv(args.input, index_col="id")
-
-    if args.from_id is None and args.to_id is None:
-        if args.id is None:
-            rows = parameters
-        else:
-            rows = parameters[parameters.index.isin(args.id)]
-    else:
-        from_index = 0
-        if args.from_id is not None:
-            from_index = parameters.index.get_loc(args.from_id)
-
-        to_index = len(parameters.index)
-        if args.to_id is not None:
-            to_index = parameters.index.get_loc(args.to_id)
-
-        ids = list(parameters.index[from_index:to_index])
-        if args.id is not None:
-            ids.extend(args.id)
-
-        rows = parameters[parameters.index.isin(ids)]
+    csv_input = CSVInput(args.input)
+    csv_input.create_view("filtered_sets", csv_input.get_ids(from_id=args.from_id, to_id=args.to_id, ids=args.id))
 
     settings = dict(job_name=args.job_name, env_name=args.env_name, walltime=args.walltime)
 
@@ -438,8 +418,7 @@ if __name__ == "__main__":
     run(site=args.site,
         cluster=args.cluster,
         settings=settings,
-        parameters=parameters,
-        filtered_parameters=rows,
+        csv_input=csv_input,
         output_path=args.output,
         rampup_rate=args.rampup_rate,
         infer_from=args.infer_from,
