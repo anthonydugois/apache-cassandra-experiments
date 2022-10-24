@@ -143,6 +143,8 @@ def post(result_path: str,
             logging.warning(f"{_set_path} does not exist.")
 
     # Save CSV files
+    parameters.to_csv(_tidy_path / "input.csv")
+
     for key in dfs:
         pd.concat(dfs[key]).to_csv(_tidy_path / f"{key}.csv", index=False)
 
@@ -156,7 +158,7 @@ def post(result_path: str,
             file.add(_result_path, arcname=_result_path.name)
 
         with tarfile.open(_archive_path / f"{_result_path.name}-light.tar.xz", mode="w:xz") as file:
-            file.add(_tidy_path, arcname=_result_path.name)
+            file.add(f"{_result_path.name}-light", arcname=_result_path.name)
 
 
 if __name__ == "__main__":
