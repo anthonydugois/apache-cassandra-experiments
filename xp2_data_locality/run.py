@@ -13,8 +13,6 @@ from drivers.Resources import Resources
 from util.filetree import FileTree
 from util.input import CSVInput
 
-BASENAME = f"xp2.{datetime.now().isoformat(timespec='seconds')}"
-
 LOCAL_FILETREE = FileTree().define([
     {"path": str(Path(__file__).parent), "tags": "root"},
     {"path": "@root/conf", "tags": "conf"},
@@ -24,18 +22,6 @@ LOCAL_FILETREE = FileTree().define([
     {"path": f"@root/input", "tags": "input"},
     {"path": f"@root/output", "tags": "output"},
 ])
-
-DEFAULT_JOB_NAME = "cassandra"
-DEFAULT_SITE = "nancy"
-DEFAULT_CLUSTER = "gros"
-DEFAULT_ENV_NAME = "debian11-x64-min"
-DEFAULT_WALLTIME = "00:30:00"
-DEFAULT_OUTPUT = str(LOCAL_FILETREE.path("output") / BASENAME)
-DEFAULT_INFER_FROM = 0
-DEFAULT_RAMPUP_RATE = 50_000
-DEFAULT_REPORT_INTERVAL = 30
-DEFAULT_HISTOGRAM_FILTER = ".*result:30s"
-DEFAULT_DSTAT_OPTIONS = "-Tcmdrns -D total,sda5"
 
 DSTAT_SLEEP_IN_SEC = 5
 
@@ -64,13 +50,13 @@ def run(site: str,
         cluster: str,
         settings: dict,
         csv_input: CSVInput,
-        output_path: str,
-        rampup_rate=DEFAULT_RAMPUP_RATE,
-        report_interval=DEFAULT_REPORT_INTERVAL,
-        histogram_filter=DEFAULT_HISTOGRAM_FILTER,
-        dstat_options=DEFAULT_DSTAT_OPTIONS):
+        output_path: Path,
+        rampup_rate: int,
+        report_interval: int,
+        histogram_filter: str,
+        dstat_options="-Tcmdrns -D total,sda5"):
     filetree = FileTree().define([
-        {"path": output_path, "tags": ["root"]},
+        {"path": str(output_path), "tags": ["root"]},
         {"path": "@root/raw", "tags": ["raw"]},
     ]).build()
 
@@ -121,24 +107,11 @@ def run(site: str,
             {"path": f"@{_name}/conf", "tags": [f"{_name}__conf"]}
         ]).build()
 
-        should_execute_rampup = _rampup_phase == "yes"
-        should_execute_main = _main_phase == "yes"
+        execute_rampup = _rampup_phase == "yes"
+        execute_main = _main_phase == "yes"
 
         ops_per_client = _ops / _clients
         rate_limit_per_client = _rate_limit / _clients if not pd.isna(_rate_limit) else 0
-
-        # Infer saturating throughput
-        # sat_throughput = infer_throughput(parameters=csv_input.all(),
-        #                                   ref_id=_throughput_ref,
-        #                                   basepath=filetree.path("raw"),
-        #                                   start_time=infer_from)
-
-        # Compute real throughput on each client
-        # throughput_per_client = 0
-        # if sat_throughput > 0:
-        #     logging.info(f"Saturating throughput currently set to {sat_throughput}.")
-        #
-        #     throughput_per_client = _throughput * sat_throughput / _clients
 
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
         nb_hosts = resources.roles["clients"][:_clients]
@@ -183,7 +156,7 @@ def run(site: str,
             # Deploy and start Cassandra
             cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
 
-            cassandra.init(cassandra_hosts, reset=should_execute_rampup)
+            cassandra.init(cassandra_hosts, reset=execute_rampup)
             cassandra.create_config(LOCAL_FILETREE.path("cassandra-conf") / _config_file)
             cassandra.create_extra_config([LOCAL_FILETREE.path("cassandra-conf") / "jvm-server.options",
                                            LOCAL_FILETREE.path("cassandra-conf") / "jvm11-server.options",
@@ -192,7 +165,7 @@ def run(site: str,
 
             logging.info(cassandra.status())
 
-            if should_execute_rampup:
+            if execute_rampup:
                 logging.info("Executing rampup phase.")
 
                 # Create schema
@@ -249,7 +222,7 @@ def run(site: str,
             logging.info(cassandra.tablestats("baselines.keyvalue"))
             logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
 
-            if should_execute_main:
+            if execute_main:
                 main_options = dict(driver="cqld4",
                                     workload=nb_workload,
                                     alias="xp2",
@@ -365,6 +338,15 @@ if __name__ == "__main__":
     from sys import stdout
     from enoslib.config import set_config
 
+    DEFAULT_JOB_NAME = "cassandra"
+    DEFAULT_SITE = "nancy"
+    DEFAULT_CLUSTER = "gros"
+    DEFAULT_ENV_NAME = "debian11-x64-min"
+    DEFAULT_WALLTIME = "00:30:00"
+    DEFAULT_RAMPUP_RATE = 50_000
+    DEFAULT_REPORT_INTERVAL = 30
+    DEFAULT_HISTOGRAM_FILTER = ".*result:30s"
+
     set_config(ansible_stdout="noop")
 
     parser = argparse.ArgumentParser()
@@ -376,7 +358,7 @@ if __name__ == "__main__":
     parser.add_argument("--env-name", type=str, default=DEFAULT_ENV_NAME)
     parser.add_argument("--reservation", type=str, default=None)
     parser.add_argument("--walltime", type=str, default=DEFAULT_WALLTIME)
-    parser.add_argument("--output", type=str, default=DEFAULT_OUTPUT)
+    parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--rampup-rate", type=int, default=DEFAULT_RAMPUP_RATE)
     parser.add_argument("--report-interval", type=int, default=DEFAULT_REPORT_INTERVAL)
     parser.add_argument("--histogram-filter", type=str, default=DEFAULT_HISTOGRAM_FILTER)
@@ -387,18 +369,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    log_options = dict(level=logging.INFO, format="%(asctime)s %(levelname)s : %(message)s")
-    if args.log is not None:
-        log_path = Path(args.log)
-        log_path.mkdir(parents=True, exist_ok=True)
-
-        log_options["filename"] = str(log_path / f"{BASENAME}.log")
-    else:
-        log_options["stream"] = stdout
-
-    logging.basicConfig(**log_options)
-
-    csv_input = CSVInput(args.input)
+    csv_input = CSVInput(Path(args.input))
     csv_input.create_view("filtered_sets", csv_input.get_ids(from_id=args.from_id, to_id=args.to_id, ids=args.id))
 
     settings = dict(job_name=args.job_name, env_name=args.env_name, walltime=args.walltime)
@@ -406,11 +377,27 @@ if __name__ == "__main__":
     if args.reservation is not None:
         settings["reservation"] = args.reservation
 
+    if args.output is None:
+        now = datetime.now().isoformat(timespec='seconds')
+        output_path = LOCAL_FILETREE.path("output") / f"{csv_input.file_path.stem}.{now}"
+    else:
+        output_path = Path(args.output)
+
+    log_options = dict(level=logging.INFO, format="%(asctime)s %(levelname)s : %(message)s")
+    if args.log is not None:
+        log_path = Path(args.log)
+        log_path.mkdir(parents=True, exist_ok=True)
+        log_options["filename"] = str(log_path / f"{output_path.name}.log")
+    else:
+        log_options["stream"] = stdout
+
+    logging.basicConfig(**log_options)
+
     run(site=args.site,
         cluster=args.cluster,
         settings=settings,
         csv_input=csv_input,
-        output_path=args.output,
+        output_path=output_path,
         rampup_rate=args.rampup_rate,
         report_interval=args.report_interval,
         histogram_filter=args.histogram_filter)

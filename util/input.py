@@ -8,9 +8,9 @@ class MissingViewException(Exception):
 
 
 class CSVInput:
-    def __init__(self, csv_file_path: Path):
-        self.csv_file_path = csv_file_path
-        self.dataframe = pd.read_csv(csv_file_path, index_col="id")
+    def __init__(self, file_path: Path):
+        self.file_path = file_path
+        self.dataframe = pd.read_csv(file_path, index_col="id")
         self.filtered_views = {}
 
     def all(self):
