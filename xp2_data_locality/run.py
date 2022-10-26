@@ -11,6 +11,7 @@ from drivers.Cassandra import Cassandra
 from drivers.NoSQLBench import NoSQLBench, RunCommand
 from drivers.Resources import Resources
 from util.filetree import FileTree
+from util.infer import Infer
 from util.input import CSVInput
 
 LOCAL_FILETREE = FileTree().define([
@@ -24,26 +25,6 @@ LOCAL_FILETREE = FileTree().define([
 ])
 
 DSTAT_SLEEP_IN_SEC = 5
-
-
-# def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: Path, start_time: int):
-#     if not pd.isna(ref_id):
-#         rows = parameters[parameters.index == ref_id]
-#         if rows.empty:
-#             logging.error(f"Reference #{ref_id} does not exist. Could not infer saturating throughput.")
-#         else:
-#             ref_params = rows.iloc[0]
-#             ref_name = ref_params["name"]
-#
-#             _ref_path = basepath / ref_name
-#             if _ref_path.exists():
-#                 return MeanRateInference(_ref_path, start_time) \
-#                     .set_run_paths("run-*") \
-#                     .infer("**/*.result.csv")
-#             else:
-#                 logging.warning(f"Reference #{ref_id} has not been executed. Could not infer saturating throughput.")
-#
-#     return 0
 
 
 def run(site: str,
@@ -111,7 +92,15 @@ def run(site: str,
         execute_main = _main_phase == "yes"
 
         ops_per_client = _ops / _clients
-        rate_limit_per_client = _rate_limit / _clients if not pd.isna(_rate_limit) else 0
+
+        if pd.isna(_rate_limit):
+            rate_limit = 0
+        elif _rate_limit.startswith("infer="):
+            rate_limit = Infer(csv_input, filetree.path("root")).infer_from_expr(_rate_limit.split("=")[1])
+        else:
+            rate_limit = _rate_limit
+
+        rate_limit_per_client = rate_limit / _clients
 
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
         nb_hosts = resources.roles["clients"][:_clients]
