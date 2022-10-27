@@ -32,7 +32,6 @@ def run(site: str,
         settings: dict,
         csv_input: CSVInput,
         output_path: Path,
-        rampup_rate: int,
         report_interval: int,
         histogram_filter: str,
         dstat_options="-Tcmdrns -D total,sda5"):
@@ -69,7 +68,8 @@ def run(site: str,
         _write_ratio = params["write_ratio"]
         _keys = params["keys"]
         _ops = params["ops"]
-        _rate_limit = params["rate_limit"]
+        _rampup_rate_limit = params["rampup_rate_limit"]
+        _main_rate_limit = params["main_rate_limit"]
         _key_dist = params["key_dist"]
         _key_size_in_bytes = params["key_size_in_bytes"]
         _value_size_in_bytes = params["value_size_in_bytes"]
@@ -93,14 +93,23 @@ def run(site: str,
 
         ops_per_client = _ops / _clients
 
-        if pd.isna(_rate_limit):
-            rate_limit = 0
-        elif _rate_limit.startswith("infer="):
-            rate_limit = Infer(csv_input, filetree.path("root")).infer_from_expr(_rate_limit.split("=")[1])
+        if pd.isna(_rampup_rate_limit):
+            rampup_rate_limit = 0
+        elif _rampup_rate_limit.startswith("infer="):
+            rampup_rate_limit = Infer(csv_input, filetree.path("root")) \
+                .infer_from_expr(_rampup_rate_limit.split("=")[1])
         else:
-            rate_limit = _rate_limit
+            rampup_rate_limit = _rampup_rate_limit
 
-        rate_limit_per_client = rate_limit / _clients
+        if pd.isna(_main_rate_limit):
+            main_rate_limit = 0
+        elif _main_rate_limit.startswith("infer="):
+            main_rate_limit = Infer(csv_input, filetree.path("root")) \
+                .infer_from_expr(_main_rate_limit.split("=")[1])
+        else:
+            main_rate_limit = _main_rate_limit
+
+        main_rate_limit_per_client = main_rate_limit / _clients
 
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
         nb_hosts = resources.roles["clients"][:_clients]
@@ -184,7 +193,7 @@ def run(site: str,
                                       driverconfig=nb_driver,
                                       threads="auto",
                                       cycles=_keys,
-                                      cyclerate=rampup_rate,
+                                      cyclerate=rampup_rate_limit,
                                       stride=_client_stride,
                                       keysize=_key_size_in_bytes,
                                       valuesize=_value_size_in_bytes,
@@ -228,8 +237,8 @@ def run(site: str,
                                     host=cassandra.get_host_address(0),
                                     localdc="datacenter1")
 
-                if rate_limit_per_client > 0:
-                    main_options["cyclerate"] = rate_limit_per_client
+                if main_rate_limit_per_client > 0:
+                    main_options["cyclerate"] = main_rate_limit_per_client
 
                 main_cmds = []
                 for index, host in enumerate(nb.hosts):
@@ -332,7 +341,6 @@ if __name__ == "__main__":
     DEFAULT_CLUSTER = "gros"
     DEFAULT_ENV_NAME = "debian11-x64-min"
     DEFAULT_WALLTIME = "00:30:00"
-    DEFAULT_RAMPUP_RATE = 50_000
     DEFAULT_REPORT_INTERVAL = 30
     DEFAULT_HISTOGRAM_FILTER = ".*result:30s"
 
@@ -348,7 +356,6 @@ if __name__ == "__main__":
     parser.add_argument("--reservation", type=str, default=None)
     parser.add_argument("--walltime", type=str, default=DEFAULT_WALLTIME)
     parser.add_argument("--output", type=str, default=None)
-    parser.add_argument("--rampup-rate", type=int, default=DEFAULT_RAMPUP_RATE)
     parser.add_argument("--report-interval", type=int, default=DEFAULT_REPORT_INTERVAL)
     parser.add_argument("--histogram-filter", type=str, default=DEFAULT_HISTOGRAM_FILTER)
     parser.add_argument("--id", type=str, action="append", default=None)
@@ -387,6 +394,5 @@ if __name__ == "__main__":
         settings=settings,
         csv_input=csv_input,
         output_path=output_path,
-        rampup_rate=args.rampup_rate,
         report_interval=args.report_interval,
         histogram_filter=args.histogram_filter)
