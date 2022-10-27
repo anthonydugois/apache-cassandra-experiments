@@ -15,13 +15,13 @@ from util.infer import Infer
 from util.input import CSVInput
 
 LOCAL_FILETREE = FileTree().define([
-    {"path": str(Path(__file__).parent), "tags": "root"},
-    {"path": "@root/conf", "tags": "conf"},
-    {"path": "@conf/cassandra", "tags": "cassandra-conf"},
-    {"path": "@conf/driver", "tags": "driver-conf"},
-    {"path": "@conf/workload", "tags": "workload-conf"},
-    {"path": f"@root/input", "tags": "input"},
-    {"path": f"@root/output", "tags": "output"},
+    {"path": str(Path(__file__).parent), "tags": ["root"]},
+    {"path": "@root/conf", "tags": ["conf"]},
+    {"path": "@conf/cassandra", "tags": ["cassandra-conf"]},
+    {"path": "@conf/driver", "tags": ["driver-conf"]},
+    {"path": "@conf/workload", "tags": ["workload-conf"]},
+    {"path": f"@root/input", "tags": ["input"]},
+    {"path": f"@root/output", "tags": ["output"]},
 ])
 
 DSTAT_SLEEP_IN_SEC = 5
