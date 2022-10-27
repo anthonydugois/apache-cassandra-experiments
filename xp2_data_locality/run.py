@@ -59,13 +59,13 @@ def run(site: str,
         report_interval: int,
         histogram_filter: str,
         dstat_options="-Tcmdrns -D total,sda5"):
-    filetree = FileTree().define([
+    output_ft = FileTree().define([
         {"path": str(output_path), "tags": ["root"]},
         {"path": "@root/raw", "tags": ["raw"]},
     ]).build()
 
-    csv_input.view().to_csv(filetree.path("root") / "input.all.csv")
-    csv_input.view(key="input").to_csv(filetree.path("root") / "input.csv")
+    csv_input.view().to_csv(output_ft.path("root") / "input.all.csv")
+    csv_input.view(key="input").to_csv(output_ft.path("root") / "input.csv")
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64,
     # which is not usable in the resource driver.
@@ -107,16 +107,16 @@ def run(site: str,
 
         logging.info(f"Preparing {_name}#{_id}...")
 
-        filetree.define([
-            {"path": f"@raw/{_name}", "tags": [_name]},
-            {"path": f"@{_name}/conf", "tags": [f"{_name}__conf"]}
+        set_output_ft = FileTree().define([
+            {"path": str(output_ft.path("raw") / _name), "tags": ["root"]},
+            {"path": "@root/conf", "tags": ["conf"]}
         ]).build()
 
         execute_rampup = _rampup_phase == "yes"
         execute_main = _main_phase == "yes"
         ops_per_client = _ops / _clients
-        rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, filetree.path("raw"))
-        main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, filetree.path("raw"))
+        rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, output_ft.path("raw"))
+        main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
         main_rate_limit_per_client = main_rate_limit / _clients
 
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
@@ -126,17 +126,17 @@ def run(site: str,
         nb_workload_file = LOCAL_FILETREE.path("workload-conf") / _workload_config_file
 
         # Save config
-        filetree.copy([
+        set_output_ft.copy([
             LOCAL_FILETREE.path("cassandra-conf") / _config_file,
             LOCAL_FILETREE.path("cassandra-conf") / "jvm-server.options",
             LOCAL_FILETREE.path("cassandra-conf") / "jvm11-server.options",
             LOCAL_FILETREE.path("cassandra-conf") / "metrics-reporter-config.yaml",
             LOCAL_FILETREE.path("driver-conf") / _driver_config_file,
             LOCAL_FILETREE.path("workload-conf") / _workload_config_file
-        ], f"{_name}__conf")
+        ], "conf")
 
         # Save input parameters
-        csv_input.filter([_id]).to_csv(filetree.path(_name) / "input.csv")
+        csv_input.filter([_id]).to_csv(set_output_ft.path("root") / "input.csv")
 
         for run_index in range(_repeat):
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
@@ -222,14 +222,14 @@ def run(site: str,
             if execute_main:
                 logging.info("Executing main phase.")
 
-                filetree.define([
-                    {"path": f"@{_name}/run-{run_index}", "tags": [f"{_name}-{run_index}"]},
-                    {"path": f"@{_name}-{run_index}/tmp", "tags": [f"{_name}-{run_index}__tmp"]},
-                    {"path": f"@{_name}-{run_index}__tmp/dstat", "tags": [f"{_name}-{run_index}__dstat"]},
-                    {"path": f"@{_name}-{run_index}__tmp/data", "tags": [f"{_name}-{run_index}__data"]},
-                    {"path": f"@{_name}-{run_index}__tmp/metrics", "tags": [f"{_name}-{run_index}__metrics"]},
-                    {"path": f"@{_name}-{run_index}/clients", "tags": [f"{_name}-{run_index}__clients"]},
-                    {"path": f"@{_name}-{run_index}/hosts", "tags": [f"{_name}-{run_index}__hosts"]}
+                run_output_ft = FileTree().define([
+                    {"path": str(set_output_ft.path("root") / f"run-{run_index}"), "tags": ["root"]},
+                    {"path": "@root/tmp", "tags": ["tmp"]},
+                    {"path": "@tmp/dstat", "tags": ["dstat"]},
+                    {"path": "@tmp/data", "tags": ["data"]},
+                    {"path": "@tmp/metrics", "tags": ["metrics"]},
+                    {"path": "@root/clients", "tags": ["clients"]},
+                    {"path": "@root/hosts", "tags": ["hosts"]}
                 ]).build()
 
                 main_options = dict(driver=NB_DRIVER,
@@ -269,9 +269,9 @@ def run(site: str,
 
                     main_cmds.append((host, main_cmd))
 
-                _tmp_dstat_path = filetree.path(f"{_name}-{run_index}__dstat")
-                _tmp_data_path = filetree.path(f"{_name}-{run_index}__data")
-                _tmp_metrics_path = filetree.path(f"{_name}-{run_index}__metrics")
+                _tmp_dstat_path = run_output_ft.path("dstat")
+                _tmp_data_path = run_output_ft.path("data")
+                _tmp_metrics_path = run_output_ft.path("metrics")
 
                 with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts],
                               options=dstat_options,
@@ -292,8 +292,8 @@ def run(site: str,
                 cassandra.get_metrics(_tmp_metrics_path)
 
                 # Save results
-                _client_path = filetree.path(f"{_name}-{run_index}__clients")
-                _host_path = filetree.path(f"{_name}-{run_index}__hosts")
+                _client_path = run_output_ft.path("clients")
+                _host_path = run_output_ft.path("hosts")
 
                 for client in nb.hosts:
                     _dstat_dir = _tmp_dstat_path / client.address
@@ -332,7 +332,7 @@ def run(site: str,
                 with (_host_path / "cassandra.log").open("w") as file:
                     file.write(cassandra.logs())
 
-                shutil.rmtree(filetree.path(f"{_name}-{run_index}__tmp"))
+                run_output_ft.remove("tmp")
 
             logging.info("Destroying instances.")
 
