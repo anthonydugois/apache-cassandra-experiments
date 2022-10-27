@@ -10,7 +10,7 @@ import pandas as pd
 from drivers.Cassandra import Cassandra
 from drivers.NoSQLBench import NoSQLBench, RunCommand
 from drivers.Resources import Resources
-from util.infer import MeanRateInference
+from util.infer import MeanRateInfer
 
 ROOT = Path(__file__).parent
 
@@ -46,7 +46,7 @@ def infer_throughput(parameters: pd.DataFrame, ref_id: str, basepath: Path, star
 
             _ref_path = basepath / ref_name
             if _ref_path.exists():
-                return MeanRateInference(_ref_path, start_time) \
+                return MeanRateInfer(_ref_path, start_time) \
                     .set_run_paths("run-*") \
                     .infer("**/*.result.csv")
             else:

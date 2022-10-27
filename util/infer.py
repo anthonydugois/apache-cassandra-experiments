@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Type, Union
 
 import pandas as pd
 
@@ -11,26 +11,26 @@ class UndefinedInferenceMethodException(Exception):
     pass
 
 
-class ValueInference:
+class InferMethod:
     def __init__(self, basepath: Path, run_path_pattern: str, csv_file_pattern: str):
         self.basepath = basepath
         self.run_path_pattern = run_path_pattern
         self.csv_file_pattern = csv_file_pattern
 
-    def init(self, *args, **kwargs):
-        pass
+    def init_from_args(self, *args):
+        return self
 
     def filter_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        pass
+        return df
 
     def reduce_dataframe(self, df: pd.DataFrame) -> Any:
-        pass
+        raise NotImplementedError
 
     def aggregate_run_values(self, values: pd.Series) -> Any:
-        pass
+        raise NotImplementedError
 
     def aggregate_set_values(self, values: pd.Series) -> Any:
-        pass
+        raise NotImplementedError
 
     def infer(self):
         set_values = []
@@ -62,7 +62,7 @@ class ValueInference:
         return self.aggregate_set_values(set_values)
 
 
-class MeanRateInference(ValueInference):
+class MeanRateInfer(InferMethod):
     def __init__(self, basepath: Path):
         super().__init__(basepath, "run-*", "**/*.result.csv")
 
@@ -72,16 +72,10 @@ class MeanRateInference(ValueInference):
         self.value_column_name = "mean_rate"
         self.time_column_name = "t"
 
-    def init(self, rate=1.0,
-             start_time=0.0,
-             end_time=float("inf"),
-             value_column_name="mean_rate",
-             time_column_name="t"):
-        self.rate = rate
-        self.start_time = start_time
-        self.end_time = end_time
-        self.value_column_name = value_column_name
-        self.time_column_name = time_column_name
+    def init_from_args(self, rate="1.0", start_time="0.0", end_time="inf"):
+        self.rate = float(rate)
+        self.start_time = float(start_time)
+        self.end_time = float(end_time)
 
         return self
 
@@ -102,9 +96,12 @@ class MeanRateInference(ValueInference):
         return self.rate * values.max()
 
 
+InferMethodType = Union[Type[MeanRateInfer]]
+
+
 class Infer:
-    METHODS = {
-        "MeanRate": MeanRateInference
+    METHODS: dict[str, InferMethodType] = {
+        "MeanRate": MeanRateInfer
     }
 
     def __init__(self, csv_input: CSVInput, basepath: Path):
@@ -113,13 +110,13 @@ class Infer:
 
     def infer_from_expr(self, expr: str):
         _method, _id, _args = self.parse_expr(expr)
-        row = self.csv_input.view(rows=[_id])
+        row = self.csv_input.view(rows=_id)
         instance = _method(self.basepath / row["name"])
 
-        return instance.init(*_args).infer()
+        return instance.init_from_args(*_args).infer()
 
     @staticmethod
-    def parse_expr(expr: str):
+    def parse_expr(expr: str) -> tuple[InferMethodType, str, list[str]]:
         params = expr.split(",")
 
         method_name = params[0]

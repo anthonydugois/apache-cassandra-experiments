@@ -60,8 +60,8 @@ def run(site: str,
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64,
     # which is not usable in the resource driver.
-    max_hosts = int(csv_input.view(key="filtered_sets", columns=["hosts"]).max())
-    max_clients = int(csv_input.view(key="filtered_sets", columns=["clients"]).max())
+    max_hosts = int(csv_input.view(key="filtered_sets", columns="hosts").max())
+    max_clients = int(csv_input.view(key="filtered_sets", columns="clients").max())
 
     # Acquire G5k resources
     resources = Resources(site=site, cluster=cluster, settings=settings)

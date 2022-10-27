@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 
 class MissingViewException(Exception):
@@ -26,7 +26,9 @@ class CSVInput:
 
         return filtered_view
 
-    def view(self, key: Optional[str] = None, rows: Optional[list[str]] = None, columns: Optional[list[str]] = None):
+    def view(self, key: Optional[str] = None,
+             rows: Optional[Union[str, list[str]]] = None,
+             columns: Optional[Union[str, list[str]]] = None):
         if key is None:
             current_view = self.dataframe
         elif key in self.filtered_views:
