@@ -3,7 +3,13 @@ from typing import Optional
 
 import enoslib as en
 
-DEFAULT_DOCKER_REGISTRY = dict(type="external", ip="docker-cache.grid5000.fr", port=80)
+
+class NoRoleException(Exception):
+    pass
+
+
+class NodeCountException(Exception):
+    pass
 
 
 class UndefinedProviderException(Exception):
@@ -11,16 +17,24 @@ class UndefinedProviderException(Exception):
 
 
 class Resources:
-    def __init__(self, site: str, cluster: str, settings: dict, docker_registry: Optional[dict] = None):
+    DEFAULT_BIND_VAR_DOCKER = "/tmp/docker"
+    DEFAULT_DOCKER_REGISTRY = dict(type="external", ip="docker-cache.grid5000.fr", port=80)
+
+    def __init__(self, site: str, cluster: str, settings: dict,
+                 bind_var_docker: Optional[str] = None,
+                 docker_registry: Optional[dict] = None):
+        if bind_var_docker is None:
+            bind_var_docker = Resources.DEFAULT_BIND_VAR_DOCKER
         if docker_registry is None:
-            docker_registry = DEFAULT_DOCKER_REGISTRY
+            docker_registry = Resources.DEFAULT_DOCKER_REGISTRY
 
         self.site = site
         self.cluster = cluster
 
-        self.network_conf = en.G5kNetworkConf(type="prod", roles=["main-net"], site=self.site)
-        self.conf = en.G5kConf.from_settings(**settings).add_network_conf(self.network_conf)
+        self.net_conf = en.G5kNetworkConf(type="prod", roles=["main-net"], site=self.site)
+        self.conf = en.G5kConf.from_settings(**settings).add_network_conf(self.net_conf)
 
+        self.bind_var_docker = bind_var_docker
         self.docker_registry = docker_registry
 
         self.provider: Optional[en.G5k] = None
@@ -29,11 +43,16 @@ class Resources:
         self.role_counts: dict[str, int] = {}
 
     def add_machines(self, roles: list[str], node_count: int, cluster: Optional[str] = None):
+        if len(roles) <= 0:
+            raise NoRoleException
+        if node_count <= 0:
+            raise NodeCountException
         if cluster is None:
             cluster = self.cluster
 
-        self.conf = self.conf.add_machine(roles=roles, cluster=cluster, nodes=node_count,
-                                          primary_network=self.network_conf)
+        logging.info(f"Adding {node_count} machines from cluster {cluster} to {roles}.")
+
+        self.conf = self.conf.add_machine(roles=roles, cluster=cluster, nodes=node_count, primary_network=self.net_conf)
 
         for role in roles:
             if role in self.role_counts:
@@ -54,7 +73,8 @@ class Resources:
         if with_docker is not None:
             logging.info("Installing Docker...")
 
-            docker = en.Docker(agent=self.roles[with_docker], bind_var_docker="/tmp/docker",
+            docker = en.Docker(agent=self.roles[with_docker],
+                               bind_var_docker=self.bind_var_docker,
                                registry_opts=self.docker_registry)
 
             docker.deploy()
