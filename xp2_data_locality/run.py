@@ -31,6 +31,17 @@ class RateLimitFormatException(Exception):
     pass
 
 
+def rate_limit_from_expr(expr: str, csv_input: CSVInput, basepath: Path):
+    if pd.isna(expr):
+        return 0
+    elif expr.startswith("infer="):
+        return Infer(csv_input, basepath).infer_from_expr(expr.split("=")[1])
+    elif expr.startswith("fixed="):
+        return float(expr.split("=")[1])
+    else:
+        raise RateLimitFormatException
+
+
 def run(site: str,
         cluster: str,
         settings: dict,
@@ -94,29 +105,9 @@ def run(site: str,
 
         execute_rampup = _rampup_phase == "yes"
         execute_main = _main_phase == "yes"
-
         ops_per_client = _ops / _clients
-
-        if pd.isna(_rampup_rate_limit):
-            rampup_rate_limit = 0
-        elif _rampup_rate_limit.startswith("infer="):
-            rampup_rate_limit = Infer(csv_input, filetree.path("root")) \
-                .infer_from_expr(_rampup_rate_limit.split("=")[1])
-        elif _rampup_rate_limit.startswith("fixed="):
-            rampup_rate_limit = float(_rampup_rate_limit.split("=")[1])
-        else:
-            raise RateLimitFormatException
-
-        if pd.isna(_main_rate_limit):
-            main_rate_limit = 0
-        elif _main_rate_limit.startswith("infer="):
-            main_rate_limit = Infer(csv_input, filetree.path("root")) \
-                .infer_from_expr(_main_rate_limit.split("=")[1])
-        elif _main_rate_limit.startswith("fixed="):
-            main_rate_limit = float(_main_rate_limit.split("=")[1])
-        else:
-            raise RateLimitFormatException
-
+        rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, filetree.path("root"))
+        main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, filetree.path("root"))
         main_rate_limit_per_client = main_rate_limit / _clients
 
         cassandra_hosts = resources.roles["cassandra"][:_hosts]

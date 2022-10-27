@@ -117,8 +117,7 @@ class FileTree:
         else:
             with en.actions(roles=remote) as actions:
                 for path in self.iterpaths():
-                    if path.is_dir():
-                        actions.file(path=str(path), state="directory", mode=0o777)
+                    actions.file(path=str(path), state="directory", mode=0o777)
 
         return self
 
