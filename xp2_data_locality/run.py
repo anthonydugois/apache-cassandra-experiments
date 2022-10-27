@@ -332,7 +332,7 @@ def run(site: str,
                 with (_host_path / "cassandra.log").open("w") as file:
                     file.write(cassandra.logs())
 
-                filetree.remove(f"{_name}-{run_index}__tmp")
+                shutil.rmtree(filetree.path(f"{_name}-{run_index}__tmp"))
 
             logging.info("Destroying instances.")
 

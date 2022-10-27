@@ -1,7 +1,6 @@
 import logging
 import shutil
 from pathlib import Path
-from shutil import rmtree
 from typing import Optional, Union
 
 import enoslib as en
@@ -138,8 +137,7 @@ class FileTree:
     def remove(self, tag: str, remote: Optional[list[en.Host]] = None):
         if remote is None:
             for path in self.iterpaths(tag):
-                logging.info(f"Attempt to remove {path}.")
-                rmtree(path)
+                shutil.rmtree(path)
         else:
             with en.actions(roles=remote) as actions:
                 for path in self.iterpaths(tag):
