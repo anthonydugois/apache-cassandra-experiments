@@ -33,6 +33,8 @@ class InferMethod:
         raise NotImplementedError
 
     def infer(self):
+        logging.info(f"Infer value from {self.basepath}.")
+
         set_values = []
         for run_path in self.basepath.glob(self.run_path_pattern):
             run_values = []
@@ -112,6 +114,8 @@ class Infer:
         _method, _id, _args = self.parse_expr(expr)
         row = self.csv_input.view(rows=_id)
         instance = _method(self.basepath / row["name"])
+
+        logging.info(f"Inference method is {_method} on experiment {_id} with args {_args}.")
 
         return instance.init_from_args(*_args).infer()
 
