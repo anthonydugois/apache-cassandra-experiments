@@ -113,7 +113,7 @@ class Infer:
 
     def infer_from_expr(self, expr: str):
         _method, _id, _args = self.parse_expr(expr)
-        row = self.csv_input.row(_id)
+        row = self.csv_input.view(rows=[_id])
         instance = _method(self.basepath / row["name"])
 
         return instance.init(*_args).infer()

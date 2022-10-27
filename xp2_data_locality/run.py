@@ -41,13 +41,13 @@ def run(site: str,
         {"path": "@root/raw", "tags": ["raw"]},
     ]).build()
 
-    csv_input.all().to_csv(filetree.path("root") / "input.all.csv")
-    csv_input.view("filtered_sets").to_csv(filetree.path("root") / "input.csv")
+    csv_input.view().to_csv(filetree.path("root") / "input.all.csv")
+    csv_input.view(key="filtered_sets").to_csv(filetree.path("root") / "input.csv")
 
-    # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64, which is not usable in
-    # the resource driver.
-    max_hosts = int(csv_input.column("hosts", key="filtered_sets").max())
-    max_clients = int(csv_input.column("clients", key="filtered_sets").max())
+    # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64,
+    # which is not usable in the resource driver.
+    max_hosts = int(csv_input.view(key="filtered_sets", columns=["hosts"]).max())
+    max_clients = int(csv_input.view(key="filtered_sets", columns=["clients"]).max())
 
     # Acquire G5k resources
     resources = Resources(site=site, cluster=cluster, settings=settings)

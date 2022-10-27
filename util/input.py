@@ -13,9 +13,6 @@ class CSVInput:
         self.dataframe = pd.read_csv(file_path, index_col="id")
         self.filtered_views: dict[str, pd.DataFrame] = {}
 
-    def all(self):
-        return self.dataframe
-
     def filter(self, ids: list[str]):
         return self.dataframe[self.dataframe.index.isin(ids)]
 
@@ -29,23 +26,24 @@ class CSVInput:
 
         return filtered_view
 
-    def view(self, key: str):
-        if key in self.filtered_views:
-            return self.filtered_views[key]
-
-        raise MissingViewException
-
-    def column(self, col_name: str, key: Optional[str] = None):
+    def view(self, key: Optional[str] = None, rows: Optional[list[str]] = None, columns: Optional[list[str]] = None):
         if key is None:
-            return self.dataframe[col_name]
+            current_view = self.dataframe
+        elif key in self.filtered_views:
+            current_view = self.filtered_views[key]
+        else:
+            raise MissingViewException
 
-        return self.view(key)[col_name]
-
-    def row(self, row_index: str, key: Optional[str] = None):
-        if key is None:
-            return self.dataframe.loc[row_index]
-
-        return self.view(key).loc[row_index]
+        if rows is None:
+            if columns is None:
+                return current_view
+            else:
+                return current_view.loc[:, columns]
+        else:
+            if columns is None:
+                return current_view.loc[rows, :]
+            else:
+                return current_view.loc[rows, columns]
 
     def get_ids(self, from_id: Optional[str], to_id: Optional[str], ids: Optional[list[str]]):
         if from_id is None and to_id is None:
