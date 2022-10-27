@@ -24,7 +24,16 @@ LOCAL_FILETREE = FileTree().define([
     {"path": f"@root/output", "tags": ["output"]},
 ])
 
+NB_ALIAS = "xp"
+NB_DRIVER = "cqld4"
+NB_DRIVER_LOCALDC = "datacenter1"
+NB_BLOCK_SCHEMA = "block:schema"
+NB_BLOCK_RAMPUP = "block:rampup"
+NB_BLOCK_MAIN = "block:main.*"
+
 DSTAT_SLEEP_IN_SEC = 5
+
+MIN_RATE_LIMIT = 100.0
 
 
 class RateLimitFormatException(Exception):
@@ -33,7 +42,7 @@ class RateLimitFormatException(Exception):
 
 def rate_limit_from_expr(expr: str, csv_input: CSVInput, basepath: Path):
     if pd.isna(expr):
-        return 0
+        return 0.0
     elif expr.startswith("infer="):
         return Infer(csv_input, basepath).infer_from_expr(expr.split("=")[1])
     elif expr.startswith("fixed="):
@@ -56,12 +65,12 @@ def run(site: str,
     ]).build()
 
     csv_input.view().to_csv(filetree.path("root") / "input.all.csv")
-    csv_input.view(key="filtered_sets").to_csv(filetree.path("root") / "input.csv")
+    csv_input.view(key="input").to_csv(filetree.path("root") / "input.csv")
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64,
     # which is not usable in the resource driver.
-    max_hosts = int(csv_input.view(key="filtered_sets", columns="hosts").max())
-    max_clients = int(csv_input.view(key="filtered_sets", columns="clients").max())
+    max_hosts = int(csv_input.view(key="input", columns="hosts").max())
+    max_clients = int(csv_input.view(key="input", columns="clients").max())
 
     # Acquire G5k resources
     resources = Resources(site=site, cluster=cluster, settings=settings)
@@ -72,7 +81,7 @@ def run(site: str,
     resources.acquire(with_docker="nodes")
 
     # Run experiments
-    for _id, params in csv_input.view("filtered_sets").iterrows():
+    for _id, params in csv_input.view("input").iterrows():
         _name = params["name"]
         _repeat = params["repeat"]
         _rampup_phase = params["rampup_phase"]
@@ -146,9 +155,9 @@ def run(site: str,
             nb = NoSQLBench(docker_image="adugois1/nosqlbench:latest")
             nb.deploy(nb_hosts)
 
-            nb_driver = nb.filetree("remote_container").path("driver-conf") / nb_driver_config_file.name
-            nb_workload = nb.filetree("remote_container").path("workload-conf") / nb_workload_file.name
-            nb_data = nb.filetree("remote_container").path("data")
+            nb_driver_config = nb.filetree("remote_container").path("driver-conf") / nb_driver_config_file.name
+            nb_workload_config = nb.filetree("remote_container").path("workload-conf") / nb_workload_file.name
+            nb_data_path = nb.filetree("remote_container").path("data")
 
             # Deploy and start Cassandra
             cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
@@ -166,16 +175,16 @@ def run(site: str,
                 logging.info("Executing rampup phase.")
 
                 # Create schema
-                schema_options = dict(driver="cqld4",
-                                      workload=nb_workload,
-                                      alias="xp2",
-                                      tags="block:schema",
-                                      driverconfig=nb_driver,
+                schema_options = dict(driver=NB_DRIVER,
+                                      driverconfig=nb_driver_config,
+                                      workload=nb_workload_config,
+                                      alias=NB_ALIAS,
+                                      tags=NB_BLOCK_SCHEMA,
                                       threads=1,
-                                      rf=_rf,
                                       errors="warn,retry",
                                       host=cassandra.get_host_address(0),
-                                      localdc="datacenter1")
+                                      localdc=NB_DRIVER_LOCALDC,
+                                      rf=int(_rf))
 
                 schema_cmd = RunCommand.from_options(**schema_options)
 
@@ -185,20 +194,20 @@ def run(site: str,
                                   workload_path=nb_workload_file)
 
                 # Insert data
-                rampup_options = dict(driver="cqld4",
-                                      workload=nb_workload,
-                                      alias="xp2",
-                                      tags="block:rampup",
-                                      driverconfig=nb_driver,
+                rampup_options = dict(driver=NB_DRIVER,
+                                      driverconfig=nb_driver_config,
+                                      workload=nb_workload_config,
+                                      alias=NB_ALIAS,
+                                      tags=NB_BLOCK_RAMPUP,
                                       threads="auto",
-                                      cycles=_keys,
                                       cyclerate=rampup_rate_limit,
-                                      stride=_client_stride,
-                                      keysize=_key_size_in_bytes,
-                                      valuesize=_value_size_in_bytes,
+                                      cycles=f"1..{int(_keys) + 1}",
+                                      stride=int(_client_stride),
                                       errors="warn,retry",
                                       host=cassandra.get_host_address(0),
-                                      localdc="datacenter1")
+                                      localdc=NB_DRIVER_LOCALDC,
+                                      keysize=int(_key_size_in_bytes),
+                                      valuesize=int(_value_size_in_bytes))
 
                 rampup_cmd = RunCommand.from_options(**rampup_options)
 
@@ -209,10 +218,11 @@ def run(site: str,
 
                 # Flush memtable to SSTable
                 cassandra.nodetool("flush -- baselines keyvalue")
+                # Ensure flush is done
+                time.sleep(30)
 
                 # Perform a major compaction
                 cassandra.nodetool("compact")
-
                 # Ensure compaction is done
                 time.sleep(30)
 
@@ -220,23 +230,25 @@ def run(site: str,
             logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
 
             if execute_main:
-                main_options = dict(driver="cqld4",
-                                    workload=nb_workload,
-                                    alias="xp2",
-                                    tags="block:main-read",
-                                    driverconfig=nb_driver,
+                logging.info("Executing main phase.")
+
+                main_options = dict(driver=NB_DRIVER,
+                                    driverconfig=nb_driver_config,
+                                    workload=nb_workload_config,
+                                    alias=NB_ALIAS,
+                                    tags=NB_BLOCK_MAIN,
                                     threads=_client_threads,
                                     stride=_client_stride,
-                                    keydist=_key_dist,
-                                    keysize=_key_size_in_bytes,
-                                    valuesize=_value_size_in_bytes,
-                                    readratio=_read_ratio,
-                                    writeratio=_write_ratio,
                                     errors="timer",
                                     host=cassandra.get_host_address(0),
-                                    localdc="datacenter1")
+                                    localdc=NB_DRIVER_LOCALDC,
+                                    keydist=_key_dist,
+                                    keysize=int(_key_size_in_bytes),
+                                    valuesize=int(_value_size_in_bytes),
+                                    readratio=int(_read_ratio),
+                                    writeratio=int(_write_ratio))
 
-                if main_rate_limit_per_client > 0:
+                if main_rate_limit_per_client >= MIN_RATE_LIMIT:
                     main_options["cyclerate"] = main_rate_limit_per_client
 
                 main_cmds = []
@@ -248,11 +260,11 @@ def run(site: str,
 
                     main_cmd = RunCommand \
                         .from_options(**main_options) \
-                        .logs_dir(nb_data) \
-                        .log_histograms(nb_data / f"histograms.csv:{histogram_filter}") \
-                        .log_histostats(nb_data / f"histostats.csv:{histogram_filter}") \
-                        .report_summary_to(nb_data / "summary.txt") \
-                        .report_csv_to(nb_data / "csv") \
+                        .logs_dir(nb_data_path) \
+                        .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}") \
+                        .log_histostats(nb_data_path / f"histostats.csv:{histogram_filter}") \
+                        .report_summary_to(nb_data_path / "summary.txt") \
+                        .report_csv_to(nb_data_path / "csv") \
                         .report_interval(report_interval)
 
                     main_cmds.append((host, main_cmd))
@@ -260,8 +272,11 @@ def run(site: str,
                 _tmp_dstat_path = filetree.path(f"{_name}-{run_index}__dstat")
                 _tmp_data_path = filetree.path(f"{_name}-{run_index}__data")
                 _tmp_metrics_path = filetree.path(f"{_name}-{run_index}__metrics")
-                with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
-                    time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start main experiment
+
+                with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts],
+                              options=dstat_options,
+                              backup_dir=_tmp_dstat_path):
+                    time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start experiment
 
                     nb.command(name="nb-main",
                                commands=main_cmds,
@@ -365,7 +380,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     csv_input = CSVInput(Path(args.input))
-    csv_input.create_view("filtered_sets", csv_input.get_ids(from_id=args.from_id, to_id=args.to_id, ids=args.id))
+    csv_input.create_view("input", csv_input.get_ids(from_id=args.from_id, to_id=args.to_id, ids=args.id))
 
     settings = dict(job_name=args.job_name, env_name=args.env_name, walltime=args.walltime)
 
