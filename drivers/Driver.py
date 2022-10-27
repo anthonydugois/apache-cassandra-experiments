@@ -41,6 +41,10 @@ class Driver:
 
         raise MissingFileTreeException
 
+    def create_mount_points(self, mount_points):
+        for mount_point in mount_points:
+            self.create_mount_point(*mount_point)
+
     def create_mount_point(self, key: str, source: str, target: str, type="bind"):
         mount_point = dict(source=source, target=target, type=type)
         self.mount_points[key] = mount_point

@@ -98,7 +98,7 @@ class NoSQLBench(Driver):
             {"path": "@conf/driver", "tags": ["driver-conf"]},
             {"path": "@conf/workload", "tags": ["workload-conf"]},
             {"path": "@root/data", "tags": ["data"]}
-        ])
+        ]).build(remote=self.hosts)
 
         self.create_filetree("remote_container", [
             {"path": "/etc/nosqlbench", "tags": ["conf"]},
@@ -107,17 +107,17 @@ class NoSQLBench(Driver):
             {"path": "/var/lib/nosqlbench", "tags": ["data"]}
         ])
 
+        self.create_mount_points([
+            ("conf", "{{remote_conf_path}}", "{{remote_container_conf_path}}", "bind"),
+            ("data", "{{remote_data_path}}", "{{remote_container_data_path}}", "bind")
+        ])
+
         for host in self.hosts:
-            host.extra.update(remote_conf_path=str(self.filetree("remote").path("conf")))
-            host.extra.update(remote_data_path=str(self.filetree("remote").path("data")))
+            host.extra.update(remote_conf_path=str(self.filetree("remote").path("conf")),
+                              remote_data_path=str(self.filetree("remote").path("data")))
 
-            host.extra.update(remote_container_conf_path=str(self.filetree("remote_container").path("conf")))
-            host.extra.update(remote_container_data_path=str(self.filetree("remote_container").path("data")))
-
-        self.create_mount_point("conf", source="{{remote_conf_path}}", target="{{remote_container_conf_path}}")
-        self.create_mount_point("data", source="{{remote_data_path}}", target="{{remote_container_data_path}}")
-
-        self.filetree("remote").build(remote=self.hosts)
+            host.extra.update(remote_container_conf_path=str(self.filetree("remote_container").path("conf")),
+                              remote_container_data_path=str(self.filetree("remote_container").path("data")))
 
         logging.info("NoSQLBench has been deployed.")
 
@@ -130,17 +130,14 @@ class NoSQLBench(Driver):
                 workload_path: Path):
         hosts = []
         for host, command in commands:
-            if isinstance(command, Command):
-                command = str(command)
-
-            host.extra.update(command=command)
-
+            host.extra.update(command=str(command))
             hosts.append(host)
 
             logging.info(f"[{host.address}] Running command `{command}`.")
 
-        self.filetree("remote").copy([driver_path], "driver-conf", remote=hosts)
-        self.filetree("remote").copy([workload_path], "workload-conf", remote=hosts)
+        self.filetree("remote") \
+            .copy([driver_path], "driver-conf", remote=hosts) \
+            .copy([workload_path], "workload-conf", remote=hosts)
 
         with en.actions(roles=hosts) as actions:
             actions.docker_container(name=name,
