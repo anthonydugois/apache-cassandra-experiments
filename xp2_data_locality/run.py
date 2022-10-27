@@ -27,6 +27,10 @@ LOCAL_FILETREE = FileTree().define([
 DSTAT_SLEEP_IN_SEC = 5
 
 
+class RateLimitFormatException(Exception):
+    pass
+
+
 def run(site: str,
         cluster: str,
         settings: dict,
@@ -98,16 +102,20 @@ def run(site: str,
         elif _rampup_rate_limit.startswith("infer="):
             rampup_rate_limit = Infer(csv_input, filetree.path("root")) \
                 .infer_from_expr(_rampup_rate_limit.split("=")[1])
+        elif _rampup_rate_limit.startswith("fixed="):
+            rampup_rate_limit = float(_rampup_rate_limit.split("=")[1])
         else:
-            rampup_rate_limit = _rampup_rate_limit
+            raise RateLimitFormatException
 
         if pd.isna(_main_rate_limit):
             main_rate_limit = 0
         elif _main_rate_limit.startswith("infer="):
             main_rate_limit = Infer(csv_input, filetree.path("root")) \
                 .infer_from_expr(_main_rate_limit.split("=")[1])
+        elif _main_rate_limit.startswith("fixed="):
+            main_rate_limit = float(_main_rate_limit.split("=")[1])
         else:
-            main_rate_limit = _main_rate_limit
+            raise RateLimitFormatException
 
         main_rate_limit_per_client = main_rate_limit / _clients
 
