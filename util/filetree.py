@@ -113,7 +113,7 @@ class FileTree:
     def build(self, remote: Optional[list[en.Host]] = None):
         if remote is None:
             for path in self.iterpaths():
-                path.mkdir(mode=0o777, parents=True, exist_ok=True)
+                path.mkdir(parents=True, exist_ok=True)
         else:
             with en.actions(roles=remote) as actions:
                 for path in self.iterpaths():
