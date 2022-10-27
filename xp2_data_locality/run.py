@@ -108,15 +108,15 @@ def run(site: str,
         logging.info(f"Preparing {_name}#{_id}...")
 
         filetree.define([
-            {"path": f"@raw/{_name}", "tags": ["set", _name]},
+            {"path": f"@raw/{_name}", "tags": [_name]},
             {"path": f"@{_name}/conf", "tags": [f"{_name}__conf"]}
         ]).build()
 
         execute_rampup = _rampup_phase == "yes"
         execute_main = _main_phase == "yes"
         ops_per_client = _ops / _clients
-        rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, filetree.path("root"))
-        main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, filetree.path("root"))
+        rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, filetree.path("raw"))
+        main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, filetree.path("raw"))
         main_rate_limit_per_client = main_rate_limit / _clients
 
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
@@ -139,16 +139,6 @@ def run(site: str,
         csv_input.filter([_id]).to_csv(filetree.path(_name) / "input.csv")
 
         for run_index in range(_repeat):
-            filetree.define([
-                {"path": f"@{_name}/run-{run_index}", "tags": [f"{_name}-{run_index}"]},
-                {"path": f"@{_name}-{run_index}/tmp", "tags": [f"{_name}-{run_index}__tmp"]},
-                {"path": f"@{_name}-{run_index}__tmp/dstat", "tags": [f"{_name}-{run_index}__dstat"]},
-                {"path": f"@{_name}-{run_index}__tmp/data", "tags": [f"{_name}-{run_index}__data"]},
-                {"path": f"@{_name}-{run_index}__tmp/metrics", "tags": [f"{_name}-{run_index}__metrics"]},
-                {"path": f"@{_name}-{run_index}/clients", "tags": [f"{_name}-{run_index}__clients"]},
-                {"path": f"@{_name}-{run_index}/hosts", "tags": [f"{_name}-{run_index}__hosts"]}
-            ]).build()
-
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
 
             # Deploy NoSQLBench
@@ -231,6 +221,16 @@ def run(site: str,
 
             if execute_main:
                 logging.info("Executing main phase.")
+
+                filetree.define([
+                    {"path": f"@{_name}/run-{run_index}", "tags": [f"{_name}-{run_index}"]},
+                    {"path": f"@{_name}-{run_index}/tmp", "tags": [f"{_name}-{run_index}__tmp"]},
+                    {"path": f"@{_name}-{run_index}__tmp/dstat", "tags": [f"{_name}-{run_index}__dstat"]},
+                    {"path": f"@{_name}-{run_index}__tmp/data", "tags": [f"{_name}-{run_index}__data"]},
+                    {"path": f"@{_name}-{run_index}__tmp/metrics", "tags": [f"{_name}-{run_index}__metrics"]},
+                    {"path": f"@{_name}-{run_index}/clients", "tags": [f"{_name}-{run_index}__clients"]},
+                    {"path": f"@{_name}-{run_index}/hosts", "tags": [f"{_name}-{run_index}__hosts"]}
+                ]).build()
 
                 main_options = dict(driver=NB_DRIVER,
                                     driverconfig=nb_driver_config,
@@ -332,7 +332,7 @@ def run(site: str,
                 with (_host_path / "cassandra.log").open("w") as file:
                     file.write(cassandra.logs())
 
-            filetree.remove(f"{_name}-{run_index}__tmp")
+                filetree.remove(f"{_name}-{run_index}__tmp")
 
             logging.info("Destroying instances.")
 
