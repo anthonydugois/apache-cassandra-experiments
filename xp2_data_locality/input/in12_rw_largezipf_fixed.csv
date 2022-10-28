@@ -1,0 +1,6 @@
+id,name,repeat,rampup_phase,main_phase,hosts,rf,read_ratio,write_ratio,keys,ops,main_rate_limit,key_dist,key_size_in_bytes,value_size_in_bytes,docker_image,config_file,driver_config_file,workload_config_file,clients,client_threads,client_stride,rampup_rate_limit
+in12s1,rampup,1,yes,no,6,3,NA,NA,380000000,NA,NA,NA,16,1024,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,with-token-map.conf,fixed-size.yaml,1,256,1000,fixed=100000
+in12s2,rw-largezipf-ds-sat,3,no,yes,6,3,50,50,NA,20000000,NA,"ApproximatedZipf(380000000,0.99)",16,1024,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,without-token-map.conf,fixed-size.yaml,1,256,1000,NA
+in12s3,rw-largezipf-simple-sat,3,no,yes,6,3,50,50,NA,20000000,NA,"ApproximatedZipf(380000000,0.99)",16,1024,adugois1/apache-cassandra-se:latest,cassandra-simple.yaml,without-token-map.conf,fixed-size.yaml,1,256,1000,NA
+in12s4,rw-largezipf-ds-nom,3,no,yes,6,3,50,50,NA,20000000,"infer=MeanRate,in12s2,0.8","ApproximatedZipf(380000000,0.99)",16,1024,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,without-token-map.conf,fixed-size.yaml,1,256,1000,NA
+in12s5,rw-largezipf-simple-nom,3,no,yes,6,3,50,50,NA,20000000,"infer=MeanRate,in12s2,0.8","ApproximatedZipf(380000000,0.99)",16,1024,adugois1/apache-cassandra-se:latest,cassandra-simple.yaml,without-token-map.conf,fixed-size.yaml,1,256,1000,NA

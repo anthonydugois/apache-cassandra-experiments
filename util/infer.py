@@ -11,6 +11,10 @@ class UndefinedInferenceMethodException(Exception):
     pass
 
 
+class EmptySetException(Exception):
+    pass
+
+
 class InferMethod:
     def __init__(self, basepath: Path, run_path_pattern: str, csv_file_pattern: str):
         self.basepath = basepath
@@ -59,7 +63,7 @@ class InferMethod:
 
         set_values = pd.Series(set_values)
         if set_values.empty:
-            raise Exception
+            raise EmptySetException
 
         return self.aggregate_set_values(set_values)
 
@@ -115,8 +119,6 @@ class Infer:
         row = self.csv_input.view(rows=_id)
         instance = _method(self.basepath / row["name"])
 
-        logging.info(f"Inference method is {_method} on experiment {_id} with args {_args}.")
-
         return instance.init_from_args(*_args).infer()
 
     @staticmethod
@@ -130,5 +132,7 @@ class Infer:
         _method = Infer.METHODS[method_name]
         _id = params[1]
         _args = params[2:] if len(params) > 2 else []
+
+        logging.info(f"Parsing {expr} as method {method_name} ({_method}) on id {_id} with args {_args}.")
 
         return _method, _id, _args

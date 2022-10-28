@@ -1,8 +1,0 @@
-id,name,repeat,version,hosts,clients,threads,stride,ops,throughput,throughput_ref,rf,key_size_in_bytes,value_size_in_bytes,bytes_per_host,rampup_mode,docker_image,config_file,driver_config_file,workload_file,workload_parameters
-s1,baseline,5,se,6,1,256,1000,50000000,1,NA,3,16,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-uniform.yaml,NA
-s2,uniform-ds-0.8,5,se,6,1,256,1000,50000000,0.8,s1,3,16,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-uniform.yaml,NA
-s3,uniform-simple-0.8,5,se,6,1,256,1000,50000000,0.8,s1,3,16,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-simple.yaml,main.conf,fixed-uniform.yaml,NA
-s4,zipf-0.25-ds-0.8,5,se,6,1,256,1000,50000000,0.8,s1,3,16,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-zipf.yaml,zipf=0.25
-s5,zipf-0.25-simple-0.8,5,se,6,1,256,1000,50000000,0.8,s1,3,16,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-simple.yaml,main.conf,fixed-zipf.yaml,zipf=0.25
-s6,zipf-0.99-ds-0.8,5,se,6,1,256,1000,50000000,0.8,s1,3,16,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,main.conf,fixed-zipf.yaml,zipf=0.99
-s7,zipf-0.99-simple-0.8,5,se,6,1,256,1000,50000000,0.8,s1,3,16,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-simple.yaml,main.conf,fixed-zipf.yaml,zipf=0.99
