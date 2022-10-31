@@ -6,7 +6,7 @@ if __name__ == "__main__":
     POLLING_DELAY_IN_SECONDS = 2
     EXTENDING_WALLTIME_DELAY_IN_SECONDS = 600
     WALLTIME_EXTENSION_IN_SECONDS = 3600
-    WALLTIME_EXTENSION_FORMATTED = "+1:00:00"
+    WALLTIME_EXTENSION_FORMATTED = "+01:00:00"
 
 
     def get_running_jobs(site: str, user: str):
@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     def extend_walltime(site: str, job: str, walltime: str):
         req = requests.post(url=f"https://api.grid5000.fr/stable/sites/{site}/jobs/{job}/walltime",
-                            data=dict(walltime=walltime),
+                            data={"walltime": walltime},
                             verify="/etc/ssl/certs/ca-certificates.crt")
 
         if req.status_code == 200 or req.status_code == 202:
@@ -45,6 +45,7 @@ if __name__ == "__main__":
             if deadlines[uid] - now_in_seconds < EXTENDING_WALLTIME_DELAY_IN_SECONDS:
                 deadlines[uid] += WALLTIME_EXTENSION_IN_SECONDS
                 print(f"Extending walltime of job {uid} to {deadlines[uid]}.")
-                extend_walltime("nancy", uid, WALLTIME_EXTENSION_FORMATTED)
+                res = extend_walltime("nancy", uid, WALLTIME_EXTENSION_FORMATTED)
+                print(res)
 
         time.sleep(POLLING_DELAY_IN_SECONDS)
