@@ -295,12 +295,16 @@ class Cassandra:
 
         return results
 
+    def flush_and_compact(self, keyspace: str, table: str):
+        self.nodetool(f"flush -- {keyspace} {table}", [self.hosts[0]])
+        self.nodetool(f"compact", [self.hosts[0]])
+
     def status(self):
         results = self.nodetool("status", [self.hosts[0]])
         return results[0].payload["stdout"]
 
-    def tablestats(self, table: str):
-        results = self.nodetool(f"tablestats {table}", [self.hosts[0]])
+    def tablestats(self, keyspace: str, table: str):
+        results = self.nodetool(f"tablestats {keyspace}.{table}", [self.hosts[0]])
         return results[0].payload["stdout"]
 
     def logs(self):
@@ -310,7 +314,7 @@ class Cassandra:
 
         return results[0].payload["stdout"]
 
-    def du(self, path="/var/lib/cassandra/data"):
+    def du(self, path: str):
         with en.actions(roles=self.hosts[0]) as actions:
             actions.shell(cmd=f"docker exec {self.name} du -sh {path}")
             results = actions.results

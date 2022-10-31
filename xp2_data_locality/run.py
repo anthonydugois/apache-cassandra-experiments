@@ -206,18 +206,11 @@ def run(site: str,
                                   driver_path=nb_driver_config_file,
                                   workload_path=nb_workload_file)
 
-                # Flush memtable to SSTable
-                cassandra.nodetool("flush -- baselines keyvalue")
-                # Ensure flush is done
-                time.sleep(30)
+                # Flush memtable to SSTable and perform a major compaction
+                cassandra.flush_and_compact("baselines", "keyvalue")
 
-                # Perform a major compaction
-                cassandra.nodetool("compact")
-                # Ensure compaction is done
-                time.sleep(30)
-
-            logging.info(cassandra.tablestats("baselines.keyvalue"))
-            logging.info(cassandra.du("/var/lib/cassandra/data/baselines"))
+            logging.info(cassandra.tablestats("baselines", "keyvalue"))
+            logging.info(cassandra.du("{{remote_container_data_path}}/data/baselines"))
 
             if execute_main:
                 logging.info("Executing main phase.")
