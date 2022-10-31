@@ -361,7 +361,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("input", type=str)
+    parser.add_argument("input", type=str, nargs="+")
     parser.add_argument("--job-name", type=str, default=DEFAULT_JOB_NAME)
     parser.add_argument("--site", type=str, default=DEFAULT_SITE)
     parser.add_argument("--cluster", type=str, default=DEFAULT_CLUSTER)
@@ -371,14 +371,14 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--report-interval", type=int, default=DEFAULT_REPORT_INTERVAL)
     parser.add_argument("--histogram-filter", type=str, default=DEFAULT_HISTOGRAM_FILTER)
-    parser.add_argument("--id", type=str, action="append", default=None)
+    parser.add_argument("--id", type=str, nargs="*", default=None)
     parser.add_argument("--from-id", type=str, default=None)
     parser.add_argument("--to-id", type=str, default=None)
     parser.add_argument("--log", type=str, default=None)
 
     args = parser.parse_args()
 
-    csv_input = CSVInput(Path(args.input))
+    csv_input = CSVInput([Path(_input) for _input in args.input])
     csv_input.create_view("input", csv_input.get_ids(from_id=args.from_id, to_id=args.to_id, ids=args.id))
 
     settings = dict(job_name=args.job_name, env_name=args.env_name, walltime=args.walltime)
@@ -388,7 +388,7 @@ if __name__ == "__main__":
 
     if args.output is None:
         now = datetime.now().isoformat(timespec='seconds')
-        output_path = LOCAL_FILETREE.path("output") / f"{csv_input.file_path.stem}.{now}"
+        output_path = LOCAL_FILETREE.path("output") / f"{csv_input.file_paths[0].stem}.{now}"
     else:
         output_path = Path(args.output)
 
