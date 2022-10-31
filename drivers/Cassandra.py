@@ -295,14 +295,12 @@ class Cassandra:
 
         return results
 
-    def flush_and_compact(self, keyspace: str, table: str):
+    def flush(self, keyspace: str, table: str):
         """
-        Flush memtable to disk, disable compaction throttling and perform a major compaction.
+        Flush memtable to disk on each host.
         """
 
-        self.nodetool(f"flush -- {keyspace} {table}", [self.hosts[0]])
-        self.nodetool("setcompactionthroughput 0", [self.hosts[0]])
-        self.nodetool(f"compact -- {keyspace} {table}", [self.hosts[0]])
+        self.nodetool(f"flush -- {keyspace} {table}")
 
     def status(self):
         results = self.nodetool("status", [self.hosts[0]])

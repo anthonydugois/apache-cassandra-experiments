@@ -206,8 +206,8 @@ def run(site: str,
                                   driver_path=nb_driver_config_file,
                                   workload_path=nb_workload_file)
 
-                # Flush memtable to SSTable and perform a major compaction
-                cassandra.flush_and_compact("baselines", "keyvalue")
+                # Flush memtable to SSTable
+                cassandra.flush("baselines", "keyvalue")
 
             logging.info(cassandra.tablestats("baselines", "keyvalue"))
             logging.info(cassandra.du("{{remote_container_data_path}}/data/baselines"))
