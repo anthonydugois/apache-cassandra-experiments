@@ -31,7 +31,7 @@ blocks:
             key text,
             value text,
             PRIMARY KEY (key)
-          );
+          ) WITH speculative_retry = 'NONE' AND compaction = {'class': 'LeveledCompactionStrategy'};
   rampup:
     params:
       cl: LOCAL_ONE
