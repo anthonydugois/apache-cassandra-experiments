@@ -1,5 +1,5 @@
 id,name,repeat,rampup_phase,main_phase,hosts,rf,read_ratio,write_ratio,keys,ops,main_rate_limit,key_dist,key_size_in_bytes,value_size_in_bytes,docker_image,config_file,driver_config_file,workload_config_file,clients,client_threads,client_stride,rampup_rate_limit
-in9s1,rampup,1,yes,no,6,3,NA,NA,380000000,NA,NA,NA,16,1024,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,with-token-map.conf,fixed-size.yaml,1,256,1000,fixed=100000
+in9s1,rw-uniform-rampup,1,yes,no,6,3,NA,NA,380000000,NA,NA,NA,16,1024,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,with-token-map.conf,fixed-size.yaml,1,256,1000,fixed=100000
 in9s2,rw-uniform-ds-sat,3,no,yes,6,3,50,50,NA,20000000,NA,"Uniform(1,380000000)",16,1024,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,without-token-map.conf,fixed-size.yaml,1,256,1000,NA
 in9s3,rw-uniform-simple-sat,3,no,yes,6,3,50,50,NA,20000000,NA,"Uniform(1,380000000)",16,1024,adugois1/apache-cassandra-se:latest,cassandra-simple.yaml,without-token-map.conf,fixed-size.yaml,1,256,1000,NA
 in9s4,rw-uniform-ds-nom,3,no,yes,6,3,50,50,NA,20000000,"infer=MeanRate,in9s2,0.8","Uniform(1,380000000)",16,1024,adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,without-token-map.conf,fixed-size.yaml,1,256,1000,NA
