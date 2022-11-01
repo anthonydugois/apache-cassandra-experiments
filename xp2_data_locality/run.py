@@ -373,17 +373,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    csv_input = CSVInput([Path(_input) for _input in args.input])
+    csv_input = CSVInput(args.input)
     csv_input.create_view("input", csv_input.get_ids(from_id=args.from_id, to_id=args.to_id, ids=args.id))
 
     settings = dict(job_name=args.job_name, env_name=args.env_name, walltime=args.walltime)
-
     if args.reservation is not None:
         settings["reservation"] = args.reservation
 
     if args.output is None:
         now = datetime.now().isoformat(timespec='seconds')
-        output_path = LOCAL_FILETREE.path("output") / f"{csv_input.file_paths[0].stem}.{now}"
+        output_path = LOCAL_FILETREE.path("output") / f"{args.job_name}.{now}"
     else:
         output_path = Path(args.output)
 

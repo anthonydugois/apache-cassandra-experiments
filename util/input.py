@@ -12,12 +12,15 @@ class MissingViewException(Exception):
 
 
 class CSVInput:
-    def __init__(self, file_paths: list[Path]):
-        if len(file_paths) <= 0:
+    def __init__(self, globs: list[str], basepath: Optional[Path] = None):
+        if len(globs) <= 0:
             raise EmptyDataException
+        if basepath is None:
+            basepath = Path()
 
-        self.file_paths = file_paths
-        self.dataframe = pd.concat((pd.read_csv(file_path, index_col="id") for file_path in file_paths))
+        self.basepath = basepath
+        self.file_paths = [file_path for glob in globs for file_path in self.basepath.glob(glob)]
+        self.dataframe = pd.concat((pd.read_csv(file_path, index_col="id") for file_path in self.file_paths))
         self.filtered_views: dict[str, pd.DataFrame] = {}
 
     def filter(self, ids: list[str]):
