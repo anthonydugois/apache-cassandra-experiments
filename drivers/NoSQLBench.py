@@ -162,15 +162,11 @@ class NoSQLBench(Driver):
 
         self.command(name, [(host, command)], driver_path, workload_path)
 
-    def pull_results(self, basepath: Path, hosts: Optional[list[en.Host]] = None):
-        if hosts is None:
-            hosts = self.hosts
-
-        for host in hosts:
+    def pull_results(self, basepath: Path):
+        for host in self.hosts:
             local_data_path = basepath / host.address
             local_data_path.mkdir(parents=True, exist_ok=True)
 
             host.extra.update(local_data_path=str(local_data_path))
 
-        with en.actions(roles=hosts) as actions:
-            actions.synchronize(src="{{remote_data_path}}", dest="{{local_data_path}}", mode="pull")
+        self.pull(dest="{{local_data_path}}", src="{{remote_data_path}}", src_hosts=self.hosts)

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 import enoslib as en
 
@@ -53,3 +53,45 @@ class Driver:
 
     def mounts(self):
         return list(self.mount_points.values())
+
+    def push(self, src: str,
+             dest: str,
+             src_hosts: Optional[list[Union[None, en.Host]]] = None,
+             dest_hosts: Optional[list[en.Host]] = None):
+        """
+        Push files from `src` on `src_hosts` to `dest` on `dest_hosts`.
+        """
+
+        if src_hosts is None:
+            src_hosts = [None]
+        if dest_hosts is None:
+            dest_hosts = self.hosts
+
+        for src_host in src_hosts:
+            args = dict(src=src, dest=dest, mode="push")
+            if isinstance(src_host, en.Host):
+                args["delegate_to"] = src_host.address
+
+            with en.actions(roles=dest_hosts) as actions:
+                actions.synchronize(**args)
+
+    def pull(self, dest: str,
+             src: str,
+             dest_hosts: Optional[list[Union[None, en.Host]]] = None,
+             src_hosts: Optional[list[en.Host]] = None):
+        """
+        Pull files from `src` on `src_hosts` to `dest` on `dest_hosts`.
+        """
+
+        if dest_hosts is None:
+            dest_hosts = [None]
+        if src_hosts is None:
+            src_hosts = self.hosts
+
+        for dest_host in dest_hosts:
+            args = dict(src=src, dest=dest, mode="pull")
+            if isinstance(dest_host, en.Host):
+                args["delegate_to"] = dest_host.address
+
+            with en.actions(roles=src_hosts) as actions:
+                actions.synchronize(**args)
