@@ -3,17 +3,41 @@ bindings:
     Pad("0", TEMPLATE(keysize,16));
     ToString() -> String
   seq_value:
-    CharBufImage("a-zA-Z0-9", 100000, TEMPLATE(valuesize,1024));
+    SaveLong("id");
+    TEMPLATE(valuesizedist,);
+    ToLong() -> long;
+    SaveLong("size");
+    Load("id") -> long;
+    CharBufImage("a-zA-Z0-9", 1000000, Load("size") -> long);
     ToString() -> String
+  seq_value_size:
+    TEMPLATE(valuesizedist,);
+    ToLong() -> long
   rw_key:
     TEMPLATE(keydist,);
     Pad("0", TEMPLATE(keysize,16));
     ToString() -> String
   rw_value:
-    CharBufImage("a-zA-Z0-9", 100000, TEMPLATE(valuesize,1024));
+    SaveLong("id");
+    Hash();
+    TEMPLATE(valuesizedist,);
+    ToLong() -> long;
+    SaveLong("size");
+    Load("id") -> long;
+    CharBufImage("a-zA-Z0-9", 1000000, Load("size") -> long);
     ToString() -> String
 
 blocks:
+  csv-freqs:
+    ops:
+      write-row:
+        stmt: |
+          {rw_key}
+  csv-sizes:
+    ops:
+      write-row:
+        stmt: |
+          {seq_key},{seq_value_size}
   schema:
     params:
       timeout: 30.0
