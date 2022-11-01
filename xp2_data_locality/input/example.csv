@@ -1,0 +1,3 @@
+id,name,repeat,rampup_phase,main_phase,hosts,rf,read_ratio,write_ratio,keys,ops,main_rate_limit,key_dist,key_size,value_size_dist,docker_image,config_file,driver_config_file,workload_config_file,clients,client_threads,client_stride,rampup_rate_limit
+1,rampup,1,yes,no,3,3,NA,NA,100000,NA,NA,NA,16,FixedValue(1024),adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,with-token-map.conf,cql.yaml,1,256,1000,fixed=50000
+2,main,1,no,yes,3,3,100,0,NA,1000000,NA,"Uniform(1,100000)",16,FixedValue(1024),adugois1/apache-cassandra-se:latest,cassandra-ds.yaml,without-token-map.conf,cql.yaml,1,256,1000,NA

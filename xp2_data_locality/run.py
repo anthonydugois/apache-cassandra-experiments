@@ -27,6 +27,8 @@ LOCAL_FILETREE = FileTree().define([
 NB_ALIAS = "xp"
 NB_DRIVER = "cqld4"
 NB_DRIVER_LOCALDC = "datacenter1"
+NB_BLOCK_CSV_FREQS = "block:csv-freqs"
+NB_BLOCK_CSV_SIZES = "block:csv-sizes"
 NB_BLOCK_SCHEMA = "block:schema"
 NB_BLOCK_RAMPUP = "block:rampup"
 NB_BLOCK_MAIN = "block:main.*"
@@ -95,8 +97,8 @@ def run(site: str,
         _rampup_rate_limit = params["rampup_rate_limit"]
         _main_rate_limit = params["main_rate_limit"]
         _key_dist = params["key_dist"]
-        _key_size_in_bytes = params["key_size_in_bytes"]
-        _value_size_in_bytes = params["value_size_in_bytes"]
+        _key_size = params["key_size"]
+        _value_size_dist = params["value_size_dist"]
         _docker_image = params["docker_image"]
         _config_file = params["config_file"]
         _driver_config_file = params["driver_config_file"]
@@ -196,8 +198,8 @@ def run(site: str,
                                       errors="warn,retry",
                                       host=cassandra.get_host_address(0),
                                       localdc=NB_DRIVER_LOCALDC,
-                                      keysize=int(_key_size_in_bytes),
-                                      valuesize=int(_value_size_in_bytes))
+                                      keysize=int(_key_size),
+                                      valuesizedist=_value_size_dist)
 
                 rampup_cmd = RunCommand.from_options(**rampup_options)
 
@@ -236,8 +238,8 @@ def run(site: str,
                                     host=cassandra.get_host_address(0),
                                     localdc=NB_DRIVER_LOCALDC,
                                     keydist=_key_dist,
-                                    keysize=int(_key_size_in_bytes),
-                                    valuesize=int(_value_size_in_bytes),
+                                    keysize=int(_key_size),
+                                    valuesizedist=_value_size_dist,
                                     readratio=int(_read_ratio),
                                     writeratio=int(_write_ratio))
 
