@@ -84,6 +84,8 @@ class RunCommand(Command):
 
 
 class NBDriver(Driver):
+    CONTAINER_NAME = "nb"
+
     def __init__(self, docker_image: str):
         super().__init__()
 
@@ -97,37 +99,42 @@ class NBDriver(Driver):
             {"path": "@root/conf", "tags": ["conf"]},
             {"path": "@conf/driver", "tags": ["driver-conf"]},
             {"path": "@conf/workload", "tags": ["workload-conf"]},
-            {"path": "@root/data", "tags": ["data"]}
+            {"path": "@root/data", "tags": ["data"]},
+            {"path": "/tmp/static-data", "tags": ["static-data"]},
         ]).build(remote=self.hosts)
 
         self.create_filetree("remote_container", [
             {"path": "/etc/nosqlbench", "tags": ["conf"]},
             {"path": "@conf/driver", "tags": ["driver-conf"]},
             {"path": "@conf/workload", "tags": ["workload-conf"]},
-            {"path": "/var/lib/nosqlbench", "tags": ["data"]}
+            {"path": "/var/lib/nosqlbench", "tags": ["data"]},
+            {"path": "/var/lib/static-data", "tags": ["static-data"]}
         ])
 
         self.create_mount_points([
             ("conf", "{{remote_conf_path}}", "{{remote_container_conf_path}}", "bind"),
-            ("data", "{{remote_data_path}}", "{{remote_container_data_path}}", "bind")
+            ("data", "{{remote_data_path}}", "{{remote_container_data_path}}", "bind"),
+            ("static-data", "{{remote_static_path}}", "{{remote_container_static_path}}", "bind")
         ])
 
-        for host in self.hosts:
-            host.extra.update(remote_conf_path=str(self.filetree("remote").path("conf")),
-                              remote_data_path=str(self.filetree("remote").path("data")))
+        extra_vars = {
+            "remote_conf_path": str(self.filetree("remote").path("conf")),
+            "remote_data_path": str(self.filetree("remote").path("data")),
+            "remote_static_path": str(self.filetree("remote").path("static-data")),
+            "remote_container_conf_path": str(self.filetree("remote_container").path("conf")),
+            "remote_container_data_path": str(self.filetree("remote_container").path("data")),
+            "remote_container_static_path": str(self.filetree("remote_container").path("static-data"))
+        }
 
-            host.extra.update(remote_container_conf_path=str(self.filetree("remote_container").path("conf")),
-                              remote_container_data_path=str(self.filetree("remote_container").path("data")))
+        for host in self.hosts:
+            host.extra.update(**extra_vars)
 
         logging.info("NoSQLBench has been deployed.")
 
     def destroy(self):
         self.filetree("remote").remove("root", remote=self.hosts)
 
-    def command(self, name: str,
-                commands: list[tuple[en.Host, Union[str, Command]]],
-                driver_path: Path,
-                workload_path: Path):
+    def commands(self, commands: list[tuple[en.Host, Union[str, Command]]]):
         hosts = []
         for host, command in commands:
             host.extra.update(command=str(command))
@@ -135,32 +142,20 @@ class NBDriver(Driver):
 
             logging.info(f"[{host.address}] Running command `{command}`.")
 
-        self.filetree("remote") \
-            .copy([driver_path], "driver-conf", remote=hosts) \
-            .copy([workload_path], "workload-conf", remote=hosts)
-
         with en.actions(roles=hosts) as actions:
-            actions.docker_container(name=name,
-                                     image=self.docker_image,
-                                     detach="no",
-                                     network_mode="host",
-                                     mounts=self.mounts(),
-                                     command="{{command}}")
+            actions.docker_container(name=NBDriver.CONTAINER_NAME, image=self.docker_image, detach="no",
+                                     network_mode="host", mounts=self.mounts(), command="{{command}}")
 
-            actions.docker_container(name=name, state="absent")
+            actions.docker_container(name=NBDriver.CONTAINER_NAME, state="absent")
 
         for host in hosts:
             host.extra.update(command=None)
 
-    def single_command(self, name: str,
-                       command: Union[str, Command],
-                       driver_path: Path,
-                       workload_path: Path,
-                       host: Optional[en.Host] = None):
+    def command(self, command: Union[str, Command], host: Optional[en.Host] = None):
         if host is None:
             host = self.hosts[0]
 
-        self.command(name, [(host, command)], driver_path, workload_path)
+        self.commands([(host, command)])
 
     def pull_results(self, basepath: Path):
         for host in self.hosts:

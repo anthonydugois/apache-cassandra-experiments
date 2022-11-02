@@ -22,8 +22,9 @@ LOCAL_FILETREE = FileTree().define([
 ])
 
 NB_ALIAS = "xp"
-NB_DRIVER = "cqld4"
-NB_DRIVER_LOCALDC = "datacenter1"
+NB_STDOUT_DRIVER = "stdout"
+NB_CQL_DRIVER = "cqld4"
+NB_LOCALDC = "datacenter1"
 NB_BLOCK_CSV_FREQS = "block:csv-freqs"
 NB_BLOCK_CSV_SIZES = "block:csv-sizes"
 NB_BLOCK_SCHEMA = "block:schema"
@@ -121,8 +122,8 @@ def run(site: str,
         cassandra_hosts = resources.roles["cassandra"][:_hosts]
         nb_hosts = resources.roles["clients"][:_clients]
 
-        nb_driver_config_file = LOCAL_FILETREE.path("driver-conf") / _driver_config_file
-        nb_workload_file = LOCAL_FILETREE.path("workload-conf") / _workload_config_file
+        nb_driver_config_path = LOCAL_FILETREE.path("driver-conf") / _driver_config_file
+        nb_workload_config_path = LOCAL_FILETREE.path("workload-conf") / _workload_config_file
 
         # Save config
         set_output_ft.copy([
@@ -142,10 +143,13 @@ def run(site: str,
 
             # Deploy NoSQLBench
             nb = NBDriver(docker_image="adugois1/nosqlbench:latest")
-            nb.deploy(nb_hosts)
 
-            nb_driver_config = nb.filetree("remote_container").path("driver-conf") / nb_driver_config_file.name
-            nb_workload_config = nb.filetree("remote_container").path("workload-conf") / nb_workload_file.name
+            nb.deploy(nb_hosts)
+            nb.filetree("remote").copy([nb_driver_config_path], tag="driver-conf", remote=nb_hosts)
+            nb.filetree("remote").copy([nb_workload_config_path], tag="workload-conf", remote=nb_hosts)
+
+            nb_driver_config = nb.filetree("remote_container").path("driver-conf") / nb_driver_config_path.name
+            nb_workload_config = nb.filetree("remote_container").path("workload-conf") / nb_workload_config_path.name
             nb_data_path = nb.filetree("remote_container").path("data")
 
             # Deploy and start Cassandra
@@ -156,54 +160,72 @@ def run(site: str,
             cassandra.create_extra_config([LOCAL_FILETREE.path("cassandra-conf") / "jvm-server.options",
                                            LOCAL_FILETREE.path("cassandra-conf") / "jvm11-server.options",
                                            LOCAL_FILETREE.path("cassandra-conf") / "metrics-reporter-config.yaml"])
-            cassandra.deploy_and_start()
+            cassandra.deploy()
 
+            if execute_rampup:
+                logging.info("Executing pre-rampup phase.")
+
+                # Generate sizes and save them on disk
+                csv_sizes = nb.filetree("remote_container").path("static-data") / "key_sizes.csv"
+
+                csv_sizes_options = {
+                    "driver": NB_STDOUT_DRIVER,
+                    "filename": csv_sizes,
+                    "workload": nb_workload_config,
+                    "tags": NB_BLOCK_CSV_SIZES,
+                    "threads": "auto",
+                    "cycles": f"1..{int(_keys) + 1}",
+                    "stride": int(_client_stride),
+                    "keysize": int(_key_size),
+                    "valuesizedist": _value_size_dist
+                }
+
+                nb.command(RunCommand.from_options(**csv_sizes_options))
+                # TODO: compress csv file
+                cassandra.push(src=str(csv_sizes), dest="{{remote_static_path}}", src_hosts=[nb_hosts[0]])
+
+            cassandra.start()
+            cassandra.cleanup()
             logging.info(cassandra.status())
 
             if execute_rampup:
                 logging.info("Executing rampup phase.")
 
                 # Create schema
-                schema_options = dict(driver=NB_DRIVER,
-                                      driverconfig=nb_driver_config,
-                                      workload=nb_workload_config,
-                                      alias=NB_ALIAS,
-                                      tags=NB_BLOCK_SCHEMA,
-                                      threads=1,
-                                      errors="warn,retry",
-                                      host=cassandra.get_host_address(0),
-                                      localdc=NB_DRIVER_LOCALDC,
-                                      rf=int(_rf))
+                schema_options = {
+                    "driver": NB_CQL_DRIVER,
+                    "driverconfig": nb_driver_config,
+                    "workload": nb_workload_config,
+                    "alias": NB_ALIAS,
+                    "tags": NB_BLOCK_SCHEMA,
+                    "threads": 1,
+                    "errors": "warn,retry",
+                    "host": cassandra.get_host_address(0),
+                    "localdc": NB_LOCALDC,
+                    "rf": int(_rf)
+                }
 
-                schema_cmd = RunCommand.from_options(**schema_options)
-
-                nb.single_command(name="nb-schema",
-                                  command=schema_cmd,
-                                  driver_path=nb_driver_config_file,
-                                  workload_path=nb_workload_file)
+                nb.command(RunCommand.from_options(**schema_options))
 
                 # Insert data
-                rampup_options = dict(driver=NB_DRIVER,
-                                      driverconfig=nb_driver_config,
-                                      workload=nb_workload_config,
-                                      alias=NB_ALIAS,
-                                      tags=NB_BLOCK_RAMPUP,
-                                      threads="auto",
-                                      cyclerate=rampup_rate_limit,
-                                      cycles=f"1..{int(_keys) + 1}",
-                                      stride=int(_client_stride),
-                                      errors="warn,retry",
-                                      host=cassandra.get_host_address(0),
-                                      localdc=NB_DRIVER_LOCALDC,
-                                      keysize=int(_key_size),
-                                      valuesizedist=_value_size_dist)
+                rampup_options = {
+                    "driver": NB_CQL_DRIVER,
+                    "driverconfig": nb_driver_config,
+                    "workload": nb_workload_config,
+                    "alias": NB_ALIAS,
+                    "tags": NB_BLOCK_RAMPUP,
+                    "threads": "auto",
+                    "cyclerate": rampup_rate_limit,
+                    "cycles": f"1..{int(_keys) + 1}",
+                    "stride": int(_client_stride),
+                    "errors": "warn,retry",
+                    "host": cassandra.get_host_address(0),
+                    "localdc": NB_LOCALDC,
+                    "keysize": int(_key_size),
+                    "valuesizedist": _value_size_dist
+                }
 
-                rampup_cmd = RunCommand.from_options(**rampup_options)
-
-                nb.single_command(name="nb-rampup",
-                                  command=rampup_cmd,
-                                  driver_path=nb_driver_config_file,
-                                  workload_path=nb_workload_file)
+                nb.command(RunCommand.from_options(**rampup_options))
 
                 # Flush memtable to SSTable
                 cassandra.flush("baselines", "keyvalue")
@@ -224,21 +246,23 @@ def run(site: str,
                     {"path": "@root/hosts", "tags": ["hosts"]}
                 ]).build()
 
-                main_options = dict(driver=NB_DRIVER,
-                                    driverconfig=nb_driver_config,
-                                    workload=nb_workload_config,
-                                    alias=NB_ALIAS,
-                                    tags=NB_BLOCK_MAIN,
-                                    threads=_client_threads,
-                                    stride=_client_stride,
-                                    errors="timer",
-                                    host=cassandra.get_host_address(0),
-                                    localdc=NB_DRIVER_LOCALDC,
-                                    keydist=_key_dist,
-                                    keysize=int(_key_size),
-                                    valuesizedist=_value_size_dist,
-                                    readratio=int(_read_ratio),
-                                    writeratio=int(_write_ratio))
+                main_options = {
+                    "driver": NB_CQL_DRIVER,
+                    "driverconfig": nb_driver_config,
+                    "workload": nb_workload_config,
+                    "alias": NB_ALIAS,
+                    "tags": NB_BLOCK_MAIN,
+                    "threads": _client_threads,
+                    "stride": _client_stride,
+                    "errors": "timer",
+                    "host": cassandra.get_host_address(0),
+                    "localdc": NB_LOCALDC,
+                    "keydist": _key_dist,
+                    "keysize": int(_key_size),
+                    "valuesizedist": _value_size_dist,
+                    "readratio": int(_read_ratio),
+                    "writeratio": int(_write_ratio)
+                }
 
                 if main_rate_limit_per_client >= MIN_RATE_LIMIT:
                     main_options["cyclerate"] = main_rate_limit_per_client
@@ -265,21 +289,16 @@ def run(site: str,
                 _tmp_data_path = run_output_ft.path("data")
                 _tmp_metrics_path = run_output_ft.path("metrics")
 
-                with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts],
-                              options=dstat_options,
-                              backup_dir=_tmp_dstat_path):
-                    time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start experiment
-
-                    nb.command(name="nb-main",
-                               commands=main_cmds,
-                               driver_path=nb_driver_config_file,
-                               workload_path=nb_workload_file)
-
-                    time.sleep(DSTAT_SLEEP_IN_SEC)  # Let the system recover before killing Dstat
+                with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
+                    # Make sure Dstat is running when we start experiment
+                    time.sleep(DSTAT_SLEEP_IN_SEC)
+                    # Launch main commands
+                    nb.commands(main_cmds)
+                    # Let the system recover before killing Dstat
+                    time.sleep(DSTAT_SLEEP_IN_SEC)
 
                 # Get NoSQLBench results
                 nb.pull_results(_tmp_data_path)
-
                 # Get Cassandra metrics
                 cassandra.pull_results(_tmp_metrics_path)
 
@@ -393,10 +412,5 @@ if __name__ == "__main__":
 
     logging.basicConfig(**log_options)
 
-    run(site=args.site,
-        cluster=args.cluster,
-        settings=settings,
-        csv_input=csv_input,
-        output_path=output_path,
-        report_interval=args.report_interval,
-        histogram_filter=args.histogram_filter)
+    run(site=args.site, cluster=args.cluster, settings=settings, csv_input=csv_input, output_path=output_path,
+        report_interval=args.report_interval, histogram_filter=args.histogram_filter)

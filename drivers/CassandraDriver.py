@@ -71,15 +71,18 @@ class CassandraDriver(Driver):
             remote_conf_path = f"{remote_root_path}/{conf_dir}"
 
             remote_data_path = "/tmp/storage-data"  # Warning: make sure there is enough space on disk
+            remote_static_path = "/tmp/static-data"
             remote_metrics_path = "/tmp/metrics-data/metrics"
 
             host.extra.update(remote_root_path=remote_root_path)
             host.extra.update(remote_conf_path=remote_conf_path)
             host.extra.update(remote_data_path=remote_data_path)
+            host.extra.update(remote_static_path=remote_static_path)
             host.extra.update(remote_metrics_path=remote_metrics_path)
 
             host.extra.update(remote_container_conf_path="/etc/cassandra")
             host.extra.update(remote_container_data_path="/var/lib/cassandra")
+            host.extra.update(remote_container_static_path="/var/lib/static-data")
             host.extra.update(remote_container_metrics_path="/metrics")
 
     def init(self, hosts: list[en.Host], seed_count=1, reset=False):
@@ -141,6 +144,7 @@ class CassandraDriver(Driver):
         with en.actions(roles=self.hosts) as actions:
             actions.file(path="{{remote_root_path}}", state="directory")
             actions.file(path="{{remote_data_path}}", state="directory", mode="777")
+            actions.file(path="{{remote_static_path}}", state="directory", mode="777")
             actions.file(path="{{remote_metrics_path}}", state="directory", mode="777")
 
             # Transfer files
@@ -185,6 +189,11 @@ class CassandraDriver(Driver):
                                              "type": "bind"
                                          },
                                          {
+                                             "source": "{{remote_static_path}}",
+                                             "target": "{{remote_container_static_path}}",
+                                             "type": "bind"
+                                         },
+                                         {
                                              "source": "{{remote_metrics_path}}",
                                              "target": "{{remote_container_metrics_path}}",
                                              "type": "bind"
@@ -225,17 +234,6 @@ class CassandraDriver(Driver):
 
     def cleanup(self):
         shutil.rmtree(self.local_global_root_path)
-
-    def deploy_and_start(self, cleanup=True):
-        """
-        Deploy and start Cassandra in one call.
-        """
-
-        self.deploy()
-        self.start()
-
-        if cleanup:
-            self.cleanup()
 
     def destroy(self):
         """

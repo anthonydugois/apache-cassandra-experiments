@@ -236,7 +236,7 @@ def run(site: str,
 
                 schema_cmd = RunCommand.from_options(**schema_options)
 
-                nb.single_command("nb-schema", schema_cmd)
+                nb.command("nb-schema", schema_cmd)
 
                 # Insert data
                 rampup_options = dict(driver="cqld4",
@@ -256,7 +256,7 @@ def run(site: str,
 
                 rampup_cmd = RunCommand.from_options(**rampup_options)
 
-                nb.single_command("nb-rampup", rampup_cmd)
+                nb.command("nb-rampup", rampup_cmd)
 
                 # Flush memtable to SSTable
                 cassandra.nodetool("flush -- baselines keyvalue")
@@ -309,7 +309,7 @@ def run(site: str,
             _tmp_data_path = _run_path / "data"
             with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Make sure Dstat is running when we start main experiment
-                nb.command("nb-main", main_cmds)
+                nb.commands("nb-main", main_cmds)
                 time.sleep(DSTAT_SLEEP_IN_SEC)  # Let the system recover before killing Dstat
 
             nb.pull_results(_tmp_data_path)
