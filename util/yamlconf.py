@@ -29,6 +29,8 @@ class YamlConfig:
     def update(self, spec):
         _update(self.yaml_dict, spec)
 
+        return self
+
     def to_yaml(self, file_path: Union[str, Path]):
         with Path(file_path).open("w") as file:
             dump(self.yaml_dict, file)

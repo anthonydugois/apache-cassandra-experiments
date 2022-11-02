@@ -16,7 +16,7 @@ class UndefinedProviderException(Exception):
     pass
 
 
-class Resources:
+class G5kResources:
     DEFAULT_BIND_VAR_DOCKER = "/tmp/docker"
     DEFAULT_DOCKER_REGISTRY = dict(type="external", ip="docker-cache.grid5000.fr", port=80)
 
@@ -24,9 +24,9 @@ class Resources:
                  bind_var_docker: Optional[str] = None,
                  docker_registry: Optional[dict] = None):
         if bind_var_docker is None:
-            bind_var_docker = Resources.DEFAULT_BIND_VAR_DOCKER
+            bind_var_docker = G5kResources.DEFAULT_BIND_VAR_DOCKER
         if docker_registry is None:
-            docker_registry = Resources.DEFAULT_DOCKER_REGISTRY
+            docker_registry = G5kResources.DEFAULT_DOCKER_REGISTRY
 
         self.site = site
         self.cluster = cluster

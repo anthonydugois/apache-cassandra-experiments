@@ -7,12 +7,9 @@ from pathlib import Path
 import enoslib as en
 import pandas as pd
 
-from drivers.Cassandra import Cassandra
-from drivers.NoSQLBench import NoSQLBench, RunCommand
-from drivers.Resources import Resources
-from util.filetree import FileTree
-from util.infer import Infer
-from util.input import CSVInput
+from drivers import CassandraDriver, NBDriver, RunCommand
+from resources import G5kResources
+from util import FileTree, Infer, CSVInput
 
 LOCAL_FILETREE = FileTree().define([
     {"path": str(Path(__file__).parent), "tags": ["root"]},
@@ -75,7 +72,7 @@ def run(site: str,
     max_clients = int(csv_input.view(key="input", columns="clients").max())
 
     # Acquire G5k resources
-    resources = Resources(site=site, cluster=cluster, settings=settings)
+    resources = G5kResources(site=site, cluster=cluster, settings=settings)
 
     resources.add_machines(["nodes", "cassandra"], max_hosts)
     resources.add_machines(["nodes", "clients"], max_clients)
@@ -144,7 +141,7 @@ def run(site: str,
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
 
             # Deploy NoSQLBench
-            nb = NoSQLBench(docker_image="adugois1/nosqlbench:latest")
+            nb = NBDriver(docker_image="adugois1/nosqlbench:latest")
             nb.deploy(nb_hosts)
 
             nb_driver_config = nb.filetree("remote_container").path("driver-conf") / nb_driver_config_file.name
@@ -152,7 +149,7 @@ def run(site: str,
             nb_data_path = nb.filetree("remote_container").path("data")
 
             # Deploy and start Cassandra
-            cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
+            cassandra = CassandraDriver(name="cassandra", docker_image=_docker_image)
 
             cassandra.init(cassandra_hosts, reset=execute_rampup)
             cassandra.create_config(LOCAL_FILETREE.path("cassandra-conf") / _config_file)
@@ -284,7 +281,7 @@ def run(site: str,
                 nb.pull_results(_tmp_data_path)
 
                 # Get Cassandra metrics
-                cassandra.get_metrics(_tmp_metrics_path)
+                cassandra.pull_results(_tmp_metrics_path)
 
                 # Save results
                 _client_path = run_output_ft.path("clients")

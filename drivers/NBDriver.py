@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import enoslib as en
 
-from drivers.Driver import Driver
+from drivers import Driver
 
 
 class Command:
@@ -83,7 +83,7 @@ class RunCommand(Command):
         return RunCommand().options(**kwargs)
 
 
-class NoSQLBench(Driver):
+class NBDriver(Driver):
     def __init__(self, docker_image: str):
         super().__init__()
 
@@ -169,4 +169,4 @@ class NoSQLBench(Driver):
 
             host.extra.update(local_data_path=str(local_data_path))
 
-        self.pull(dest="{{local_data_path}}", src="{{remote_data_path}}", src_hosts=self.hosts)
+        self.pull(dest="{{local_data_path}}", src="{{remote_data_path}}")

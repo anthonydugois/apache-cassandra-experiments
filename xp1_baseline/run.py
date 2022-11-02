@@ -7,9 +7,9 @@ from pathlib import Path
 import enoslib as en
 import pandas as pd
 
-from drivers.Cassandra import Cassandra
-from drivers.NoSQLBench import NoSQLBench, RunCommand
-from drivers.Resources import Resources
+from drivers.CassandraDriver import CassandraDriver
+from drivers.NBDriver import NBDriver, RunCommand
+from resources.G5kResources import G5kResources
 from util.infer import MeanRateInfer
 
 ROOT = Path(__file__).parent
@@ -110,7 +110,7 @@ def run(site: str,
     max_clients = int(filtered_parameters["clients"].max())
 
     # Acquire G5k resources
-    resources = Resources(site=site, cluster=cluster, settings=settings)
+    resources = G5kResources(site=site, cluster=cluster, settings=settings)
 
     resources.add_machines(["nodes", "cassandra"], max_hosts)
     resources.add_machines(["nodes", "clients"], max_clients)
@@ -200,16 +200,16 @@ def run(site: str,
                          f" will{' not' if not should_rampup else ''} rampup.")
 
             # Deploy NoSQLBench
-            nb = NoSQLBench(name="nb",
-                            docker_image="nosqlbench/nosqlbench:nb5preview",
-                            driver_path=nb_driver_path,
-                            workload_path=nb_workload_path)
+            nb = NBDriver(name="nb",
+                          docker_image="nosqlbench/nosqlbench:nb5preview",
+                          driver_path=nb_driver_path,
+                          workload_path=nb_workload_path)
 
             nb.init(nb_hosts)
             nb.deploy()
 
             # Deploy and start Cassandra
-            cassandra = Cassandra(name="cassandra", docker_image=_docker_image)
+            cassandra = CassandraDriver(name="cassandra", docker_image=_docker_image)
 
             cassandra.init(cassandra_hosts, reset=should_rampup)
             cassandra.create_config(cassandra_config_file)
