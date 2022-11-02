@@ -28,15 +28,14 @@ class InvalidSeedCountException(Exception):
 
 
 class CassandraDriver(Driver):
-    def __init__(self, name: str, docker_image: str, local_global_root_path=None):
+    CONTAINER_NAME = "cassandra"
+    START_DELAY_IN_SECONDS = 120
+
+    def __init__(self, docker_image: str):
         super().__init__()
 
-        if local_global_root_path is None:
-            local_global_root_path = Path(f"tmp_{id(self)}")
-
-        self.name = name
         self.docker_image = docker_image
-        self.local_global_root_path = local_global_root_path
+        self.local_global_root_path = Path(f"tmp_{id(self)}")
 
         self.seeds: Optional[list[en.Host]] = None
         self.not_seeds: Optional[list[en.Host]] = None
@@ -154,7 +153,7 @@ class CassandraDriver(Driver):
             actions.sysctl(name="vm.max_map_count", value="1048575")
 
             # Create Cassandra container (without running)
-            actions.docker_container(name=self.name,
+            actions.docker_container(name=CassandraDriver.CONTAINER_NAME,
                                      image=self.docker_image,
                                      state="present",
                                      detach="yes",
@@ -200,18 +199,6 @@ class CassandraDriver(Driver):
 
         logging.info("Cassandra has been deployed.")
 
-    def start_host(self, host: en.Host, spawn_time=120):
-        """
-        Run a Cassandra node.
-
-        Make sure to wait at least 2 minutes in order to let Cassandra start properly.
-        """
-
-        with en.actions(roles=host) as actions:
-            actions.docker_container(name=self.name, state="started")
-
-        time.sleep(spawn_time)
-
     def start(self):
         """
         Run a Cassandra cluster.
@@ -227,7 +214,11 @@ class CassandraDriver(Driver):
         """
 
         for index, host in enumerate(self.hosts):
-            self.start_host(host)
+            with en.actions(roles=host) as actions:
+                actions.docker_container(name=CassandraDriver.CONTAINER_NAME, state="started")
+
+            # Make sure to wait at least 2 minutes for bootstrapping to finish
+            time.sleep(CassandraDriver.START_DELAY_IN_SECONDS)
 
             logging.info(f"[{host.address}] Cassandra is up and running "
                          f"({index + 1}/{self.host_count}).")
@@ -259,7 +250,7 @@ class CassandraDriver(Driver):
 
         with en.actions(roles=self.hosts) as actions:
             # Stop and remove container
-            actions.docker_container(name=self.name, state="absent")
+            actions.docker_container(name=CassandraDriver.CONTAINER_NAME, state="absent")
 
             # Remove Cassandra files
             actions.file(path="{{remote_root_path}}", state="absent")
@@ -286,7 +277,7 @@ class CassandraDriver(Driver):
             hosts = self.hosts
 
         with en.actions(roles=hosts) as actions:
-            actions.shell(cmd=f"docker exec {self.name} nodetool {command}")
+            actions.shell(cmd=f"docker exec {CassandraDriver.CONTAINER_NAME} nodetool {command}")
             results = actions.results
 
         return results
@@ -308,14 +299,14 @@ class CassandraDriver(Driver):
 
     def logs(self):
         with en.actions(roles=self.hosts[0]) as actions:
-            actions.shell(cmd=f"docker logs {self.name}")
+            actions.shell(cmd=f"docker logs {CassandraDriver.CONTAINER_NAME}")
             results = actions.results
 
         return results[0].payload["stdout"]
 
     def du(self, path: str):
         with en.actions(roles=self.hosts[0]) as actions:
-            actions.shell(cmd=f"docker exec {self.name} du -sh {path}")
+            actions.shell(cmd=f"docker exec {CassandraDriver.CONTAINER_NAME} du -sh {path}")
             results = actions.results
 
         return results[0].payload["stdout"]

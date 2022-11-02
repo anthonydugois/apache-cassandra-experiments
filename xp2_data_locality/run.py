@@ -149,7 +149,7 @@ def run(site: str,
             nb_data_path = nb.filetree("remote_container").path("data")
 
             # Deploy and start Cassandra
-            cassandra = CassandraDriver(name="cassandra", docker_image=_docker_image)
+            cassandra = CassandraDriver(docker_image=_docker_image)
 
             cassandra.init(cassandra_hosts, reset=execute_rampup)
             cassandra.create_config(LOCAL_FILETREE.path("cassandra-conf") / _config_file)
