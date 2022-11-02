@@ -109,6 +109,7 @@ class CassandraDriver(Driver):
         with en.actions(roles=self.hosts) as actions:
             # Remove existing data
             actions.file(path="{{remote_data_path}}", state="absent")
+            actions.file(path="{{remote_static_path}}", state="absent")
 
     def create_config(self, template_path: Union[str, Path]):
         seed_addresses = ",".join(host_addresses(self.seeds, port=7000))

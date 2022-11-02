@@ -181,7 +181,6 @@ def run(site: str,
                 }
 
                 nb.command(RunCommand.from_options(**csv_sizes_options))
-                # TODO: compress csv file
                 cassandra.push(src=str(csv_sizes), dest="{{remote_static_path}}", src_hosts=[nb_hosts[0]])
 
             cassandra.start()
