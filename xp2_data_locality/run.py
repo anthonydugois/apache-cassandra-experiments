@@ -221,7 +221,7 @@ def run(site: str,
                     "host": cassandra.get_host_address(0),
                     "localdc": NB_LOCALDC,
                     "keysize": int(_key_size),
-                    "valuesizedist": _value_size_dist
+                    "valuesizedist": f"'{_value_size_dist}'"
                 }
 
                 nb.command(RunCommand.from_options(**rampup_options))
@@ -256,9 +256,9 @@ def run(site: str,
                     "errors": "timer",
                     "host": cassandra.get_host_address(0),
                     "localdc": NB_LOCALDC,
-                    "keydist": _key_dist,
+                    "keydist": f"'{_key_dist}'",
                     "keysize": int(_key_size),
-                    "valuesizedist": _value_size_dist,
+                    "valuesizedist": f"'{_value_size_dist}'",
                     "readratio": int(_read_ratio),
                     "writeratio": int(_write_ratio)
                 }
