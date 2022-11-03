@@ -129,7 +129,7 @@ class NBDriver(Driver):
         for host in self.hosts:
             host.extra.update(**extra_vars)
 
-        logging.info("NoSQLBench has been deployed.")
+        logging.info(f"NoSQLBench has been deployed (hosts={self.hosts}).")
 
     def destroy(self):
         self.filetree("remote").remove("root", remote=self.hosts)

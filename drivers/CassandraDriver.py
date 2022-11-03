@@ -207,7 +207,7 @@ class CassandraDriver(Driver):
                                          "as:-1:-1"
                                      ])
 
-        logging.info("Cassandra has been deployed.")
+        logging.info(f"Cassandra has been deployed (hosts={self.hosts}, seeds={self.seeds}).")
 
     def start(self):
         """
