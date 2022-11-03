@@ -7,6 +7,7 @@ csv:
       color: "white"
       useQualifiedName: true
       patterns:
-        - "^org.apache.cassandra.metrics.ThreadPools.ActiveTasks.request.ReadStage"
-        - "^org.apache.cassandra.metrics.ThreadPools.PendingTasks.request.ReadStage"
         - "^org.apache.cassandra.metrics.ThreadPools.CompletedTasks.request.ReadStage"
+        - "^org.apache.cassandra.metrics.ThreadPools.CompletedTasks.request.MutationStage"
+        - "^org.apache.cassandra.metrics.ThreadPools.CompletedTasks.request.RequestResponseStage"
+        - "^org.apache.cassandra.metrics.ThreadPools.CompletedTasks.transport.Native-Transport-Requests"

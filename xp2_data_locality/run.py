@@ -162,26 +162,26 @@ def run(site: str,
                                            LOCAL_FILETREE.path("cassandra-conf") / "metrics-reporter-config.yaml"])
             cassandra.deploy()
 
-            if execute_rampup:
-                logging.info("Executing pre-rampup phase.")
-
-                # Generate sizes and save them on disk
-                csv_sizes = nb.filetree("remote_container").path("static-data") / "key_sizes.csv"
-
-                csv_sizes_options = {
-                    "driver": NB_STDOUT_DRIVER,
-                    "filename": csv_sizes,
-                    "workload": nb_workload_config,
-                    "tags": NB_BLOCK_CSV_SIZES,
-                    "threads": "auto",
-                    "cycles": f"1..{int(_keys) + 1}",
-                    "stride": int(_client_stride),
-                    "keysize": int(_key_size),
-                    "valuesizedist": _value_size_dist
-                }
-
-                nb.command(RunCommand.from_options(**csv_sizes_options))
-                cassandra.push(src=str(csv_sizes), dest="{{remote_static_path}}", src_hosts=[nb_hosts[0]])
+            # if execute_rampup:
+            #     logging.info("Executing pre-rampup phase.")
+            #
+            #     # Generate sizes and save them on disk
+            #     csv_sizes = nb.filetree("remote_container").path("static-data") / "key_sizes.csv"
+            #
+            #     csv_sizes_options = {
+            #         "driver": NB_STDOUT_DRIVER,
+            #         "filename": csv_sizes,
+            #         "workload": nb_workload_config,
+            #         "tags": NB_BLOCK_CSV_SIZES,
+            #         "threads": "auto",
+            #         "cycles": f"1..{int(_keys) + 1}",
+            #         "stride": int(_client_stride),
+            #         "keysize": int(_key_size),
+            #         "valuesizedist": _value_size_dist
+            #     }
+            #
+            #     nb.command(RunCommand.from_options(**csv_sizes_options))
+            #     cassandra.push(src=str(csv_sizes), dest="{{remote_static_path}}", src_hosts=[nb_hosts[0]])
 
             cassandra.start()
             cassandra.cleanup()

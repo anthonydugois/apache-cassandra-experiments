@@ -24,7 +24,7 @@ def post(result_path: str,
 
     parameters = pd.read_csv(_result_path / "input.csv", index_col="id")
 
-    dfs = dict(clients=[], hosts=[], timeseries=[], client_latency=[], latency=[])
+    dfs = dict(clients=[], hosts=[], timeseries=[], client_latency=[], latency=[], host_tasks=[])
 
     for _id, params in parameters.iterrows():
         _name = params["name"]
@@ -41,8 +41,8 @@ def post(result_path: str,
                     # Process Dstat results
                     for key in ["clients", "hosts"]:
                         _key_path = _run_path / key
-                        for _host_path in _key_path.glob("*.grid5000.fr"):
-                            _dstat_path = _host_path / "dstat"
+                        for _path in _key_path.glob("*.grid5000.fr"):
+                            _dstat_path = _path / "dstat"
                             _dstat_files = list(_dstat_path.glob("**/*-dstat.csv"))
                             if len(_dstat_files) > 0:
                                 for _dstat_file in _dstat_files:
@@ -50,32 +50,35 @@ def post(result_path: str,
                                     dstat_df["time"] = dstat_df["epoch"] - dstat_df.iloc[0]["epoch"]
                                     dstat_df["id"] = _id
                                     dstat_df["run"] = run_index
-                                    dstat_df["host_address"] = _host_path.name
+                                    dstat_df["host_address"] = _path.name
 
                                     dfs[key].append(dstat_df)
                             else:
                                 logging.warning(f"[{_name}#{_id} - run {run_index}] No Dstat file in {_dstat_path}.")
 
+                    _host_path = _run_path / "hosts"
+                    # TODO: process metrics
+
                     # This histogram will contain histograms of each client
                     global_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
 
                     _client_path = _run_path / "clients"
-                    for _host_path in _client_path.glob("*.grid5000.fr"):
+                    for _path in _client_path.glob("*.grid5000.fr"):
                         # Process timeseries results
-                        for ts_file in _host_path.glob("**/*.result.csv"):
+                        for ts_file in _path.glob("**/*.result.csv"):
                             ts_df = pd.read_csv(ts_file, index_col=False)
                             ts_df.rename(columns=dict(t="epoch"), inplace=True)
                             ts_df["time"] = ts_df["epoch"] - ts_df.iloc[0]["epoch"]
                             ts_df["id"] = _id
                             ts_df["run"] = run_index
-                            ts_df["host_address"] = _host_path.name
+                            ts_df["host_address"] = _path.name
 
                             dfs["timeseries"].append(ts_df)
 
                         # Process latency histogram results
                         hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
 
-                        for hist_file in _host_path.glob("**/histograms.csv"):
+                        for hist_file in _path.glob("**/histograms.csv"):
                             hist_df = pd.read_csv(hist_file, skiprows=3, index_col=0)
                             hist_df.reset_index(drop=True, inplace=True)
 
@@ -95,7 +98,7 @@ def post(result_path: str,
                                     hist.add(_hist)
                                     hist_index += 1
 
-                                logging.info(f"[{_name}#{_id}/{run_index}/{_host_path.name}]"
+                                logging.info(f"[{_name}#{_id}/{run_index}/{_path.name}]"
                                              f" {hist_file} ({hist_index}/{hist_count})")
 
                         client_latency_row = dict(count=hist.get_total_count(),
@@ -113,7 +116,7 @@ def post(result_path: str,
                                                   p9999=hist.get_value_at_percentile(99.99),
                                                   id=_id,
                                                   run=run_index,
-                                                  host_address=_host_path.name)
+                                                  host_address=_path.name)
 
                         dfs["client_latency"].append(pd.DataFrame(client_latency_row, index=[0]))
 
