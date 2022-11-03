@@ -4,7 +4,7 @@ from typing import Any, Type, Union
 
 import pandas as pd
 
-from util.input import CSVInput
+from .input import CSVInput
 
 
 class UndefinedInferenceMethodException(Exception):

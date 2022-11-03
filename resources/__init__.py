@@ -1,1 +1,1 @@
-from G5kResources import G5kResources
+from .G5kResources import G5kResources

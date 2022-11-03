@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import enoslib as en
 
-from drivers import Driver
+from .Driver import Driver
 
 
 class Command:

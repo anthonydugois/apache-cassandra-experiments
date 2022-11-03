@@ -6,8 +6,8 @@ from typing import Optional, Union
 
 import enoslib as en
 
-import drivers.util as util
-from drivers import Driver
+from .util import build_yaml
+from .Driver import Driver
 
 
 def host_addresses(hosts: list[en.Host], port=0):
@@ -117,13 +117,13 @@ class CassandraDriver(Driver):
         for host in self.hosts:
             local_conf_path = host.extra["local_conf_path"]
 
-            util.build_yaml(template_path=template_path,
-                            output_path=Path(local_conf_path, "cassandra.yaml"),
-                            update_spec={
-                                "seed_provider": {0: {"parameters": {0: {"seeds": seed_addresses}}}},
-                                "listen_address": host.address,
-                                "rpc_address": host.address
-                            })
+            build_yaml(template_path=template_path,
+                       output_path=Path(local_conf_path, "cassandra.yaml"),
+                       update_spec={
+                           "seed_provider": {0: {"parameters": {0: {"seeds": seed_addresses}}}},
+                           "listen_address": host.address,
+                           "rpc_address": host.address
+                       })
 
     def create_extra_config(self, template_paths: list[Union[str, Path]]):
         for host in self.hosts:
