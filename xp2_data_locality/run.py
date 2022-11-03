@@ -119,8 +119,8 @@ def run(site: str,
         main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
         main_rate_limit_per_client = main_rate_limit / _clients
 
-        cassandra_hosts = resources.roles["cassandra"][:_hosts]
-        nb_hosts = resources.roles["clients"][:_clients]
+        cassandra_hosts = list(resources.roles["cassandra"][:_hosts])
+        nb_hosts = list(resources.roles["clients"][:_clients])
 
         nb_driver_config_path = LOCAL_FILETREE.path("driver-conf") / _driver_config_file
         nb_workload_config_path = LOCAL_FILETREE.path("workload-conf") / _workload_config_file
