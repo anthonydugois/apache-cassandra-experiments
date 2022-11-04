@@ -233,13 +233,38 @@ def run(site: str,
                     {"path": "@root/hosts", "tags": ["hosts"]}
                 ]).build()
 
+                rw_total = _read_ratio + _write_ratio
+                read_ratio = _read_ratio / rw_total
+                write_ratio = _write_ratio / rw_total
+
+                read_ops_per_client = int(read_ratio * ops_per_client)
+                write_ops_per_client = int(write_ratio * ops_per_client)
+
+                read_threads = int(read_ratio * _client_threads)
+                write_threads = int(write_ratio * _client_threads)
+
                 read_params = {
                     "alias": "read",
                     "driver": "cqld4",
                     "driverconfig": nb_driver_config,
                     "workload": nb_workload_config,
                     "tags": "block:main-read",
-                    "threads": int(_client_threads),
+                    "threads": read_threads,
+                    "stride": int(_client_stride),
+                    "errors": "timer",
+                    "host": cassandra.get_host_address(0),
+                    "localdc": "datacenter1",
+                    "keydist": f"'{_key_dist}'",
+                    "keysize": int(_key_size)
+                }
+
+                write_params = {
+                    "alias": "write",
+                    "driver": "cqld4",
+                    "driverconfig": nb_driver_config,
+                    "workload": nb_workload_config,
+                    "tags": "block:main-write",
+                    "threads": write_threads,
                     "stride": int(_client_stride),
                     "errors": "timer",
                     "host": cassandra.get_host_address(0),
@@ -250,18 +275,29 @@ def run(site: str,
                 }
 
                 if main_rate_limit_per_client >= MIN_RATE_LIMIT:
+                    estimated_duration = read_ops_per_client / main_rate_limit_per_client
                     read_params["cyclerate"] = main_rate_limit_per_client
+                    write_params["cyclerate"] = write_ops_per_client / estimated_duration
+
+                    logging.info(f"Estimated duration: {estimated_duration} seconds.")
 
                 main_cmds = []
                 for index, host in enumerate(nb.hosts):
-                    start_cycle = int(index * ops_per_client)
-                    end_cycle = int(start_cycle + ops_per_client)
+                    read_start = int(index * read_ops_per_client)
+                    read_end = int(read_start + read_ops_per_client)
+                    read_cycles = f"{read_start}..{read_end}"
+
+                    write_start = int(index * write_ops_per_client)
+                    write_end = int(write_start + write_ops_per_client)
+                    write_cycles = f"{write_start}..{write_end}"
 
                     main_cmds.append((
                         host,
                         Scenario.create(
-                            StartCommand.create(**read_params, cycles=f"{start_cycle}..{end_cycle}"),
-                            AwaitCommand.create("read")
+                            StartCommand.create(**read_params, cycles=read_cycles),
+                            StartCommand.create(**write_params, cycles=write_cycles),
+                            AwaitCommand.create("read"),
+                            StopCommand.create("write")
                         )
                         .logs_dir(nb_data_path)
                         .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}")
@@ -352,8 +388,8 @@ if __name__ == "__main__":
     DEFAULT_CLUSTER = "gros"
     DEFAULT_ENV_NAME = "debian11-x64-min"
     DEFAULT_WALLTIME = "00:30:00"
-    DEFAULT_REPORT_INTERVAL = 30
-    DEFAULT_HISTOGRAM_FILTER = ".*result:30s"
+    DEFAULT_REPORT_INTERVAL = 10
+    DEFAULT_HISTOGRAM_FILTER = "read.result:10s"
 
     set_config(ansible_stdout="noop")
 

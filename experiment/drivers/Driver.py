@@ -29,6 +29,13 @@ class Driver:
 
         self.hosts = hosts
 
+    def host_addresses(self, hosts: Optional[list[en.Host]] = None, port=0):
+        if hosts is None:
+            hosts = self.hosts
+
+        _port = f":{port}" if port > 0 else ""
+        return [f"{host.address}{_port}" for host in hosts]
+
     def create_filetree(self, key: str, spec: list[dict]):
         filetree = FileTree().define(spec)
         self.filetrees[key] = filetree

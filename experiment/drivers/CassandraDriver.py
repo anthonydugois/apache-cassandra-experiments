@@ -10,15 +10,6 @@ from .util import build_yaml
 from .Driver import Driver
 
 
-def host_addresses(hosts: list[en.Host], port=0):
-    """
-    Transform a list of EnOSlib roles to a list of string addresses.
-    """
-
-    _port = f":{port}" if port > 0 else ""
-    return [f"{host.address}{_port}" for host in hosts]
-
-
 class MissingHostsException(Exception):
     pass
 
@@ -112,7 +103,7 @@ class CassandraDriver(Driver):
             actions.file(path="{{remote_static_path}}", state="absent")
 
     def create_config(self, template_path: Union[str, Path]):
-        seed_addresses = ",".join(host_addresses(self.seeds, port=7000))
+        seed_addresses = ",".join(self.host_addresses(hosts=self.seeds, port=7000))
 
         for host in self.hosts:
             local_conf_path = host.extra["local_conf_path"]
@@ -207,7 +198,8 @@ class CassandraDriver(Driver):
                                          "as:-1:-1"
                                      ])
 
-        logging.info(f"Cassandra has been deployed (hosts={self.hosts}, seeds={self.seeds}).")
+        logging.info(f"Cassandra has been deployed "
+                     f"(hosts={self.host_addresses()}, seeds={self.host_addresses(hosts=self.seeds)}).")
 
     def start(self):
         """
