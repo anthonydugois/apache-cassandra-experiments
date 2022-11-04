@@ -7,10 +7,10 @@ from pathlib import Path
 import enoslib as en
 import pandas as pd
 
-from drivers.CassandraDriver import CassandraDriver
-from drivers.NBDriver import NBDriver, RunCommand
-from resources.G5kResources import G5kResources
-from util.infer import MeanRateInfer
+from experiment.drivers.CassandraDriver import CassandraDriver
+from experiment.drivers import NBDriver, RunCommand
+from experiment.resources.G5kResources import G5kResources
+from experiment.util import MeanRateInfer
 
 ROOT = Path(__file__).parent
 
@@ -234,7 +234,7 @@ def run(site: str,
                                       host=cassandra.get_host_address(0),
                                       localdc="datacenter1")
 
-                schema_cmd = RunCommand.from_options(**schema_options)
+                schema_cmd = RunCommand.create(**schema_options)
 
                 nb.command("nb-schema", schema_cmd)
 
@@ -254,7 +254,7 @@ def run(site: str,
                                       host=cassandra.get_host_address(0),
                                       localdc="datacenter1")
 
-                rampup_cmd = RunCommand.from_options(**rampup_options)
+                rampup_cmd = RunCommand.create(**rampup_options)
 
                 nb.command("nb-rampup", rampup_cmd)
 
@@ -295,7 +295,7 @@ def run(site: str,
                 main_options["cycles"] = f"{start_cycle}..{end_cycle}"
 
                 main_cmd = RunCommand \
-                    .from_options(**main_options) \
+                    .create(**main_options) \
                     .logs_dir(nb.data()) \
                     .log_histograms(nb.data(f"histograms.csv:{histogram_filter}")) \
                     .log_histostats(nb.data(f"histostats.csv:{histogram_filter}")) \

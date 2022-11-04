@@ -11,20 +11,85 @@ class Command:
     def __init__(self):
         self.tokens = []
 
-    def option(self, key, value):
-        self.tokens.append(f"{key}={value}")
+    def token(self, token: str):
+        self.tokens.append(token)
 
         return self
 
-    def options(self, **kwargs):
+    def __str__(self):
+        return " ".join(self.tokens)
+
+
+class ParameterizedCommand(Command):
+    def parameter(self, key, value):
+        self.token(f"{key}={value}")
+
+        return self
+
+    def parameters(self, **kwargs):
         for key in kwargs:
-            self.option(key, kwargs[key])
+            self.parameter(key, kwargs[key])
+
+        return self
+
+
+class RunCommand(ParameterizedCommand):
+    def __init__(self):
+        super().__init__()
+        self.token("run")
+
+    @staticmethod
+    def create(**kwargs):
+        return RunCommand().parameters(**kwargs)
+
+
+class StartCommand(ParameterizedCommand):
+    def __init__(self):
+        super().__init__()
+        self.token("start")
+
+    @staticmethod
+    def create(**kwargs):
+        return StartCommand().parameters(**kwargs)
+
+
+class AwaitCommand(Command):
+    def __init__(self):
+        super().__init__()
+        self.token("await")
+
+    @staticmethod
+    def create(alias: str):
+        return AwaitCommand().token(alias)
+
+
+class StopCommand(Command):
+    def __init__(self):
+        super().__init__()
+        self.token("stop")
+
+    @staticmethod
+    def create(alias: str):
+        return StopCommand().token(alias)
+
+
+class Scenario:
+    def __init__(self):
+        self.cmds = []
+        self.args = []
+
+    @staticmethod
+    def create(*commands: Command):
+        return Scenario().commands(*commands)
+
+    def commands(self, *commands: Command):
+        self.cmds.extend(commands)
 
         return self
 
     def arg(self, name, value):
-        self.tokens.append(name)
-        self.tokens.append(str(value))
+        self.args.append(name)
+        self.args.append(str(value))
 
         return self
 
@@ -69,18 +134,13 @@ class Command:
         return self
 
     def __str__(self):
-        return " ".join(self.tokens)
+        cmds = " ".join((str(cmd) for cmd in self.cmds))
+        args = " ".join(self.args)
 
+        return cmds + " " + args
 
-class RunCommand(Command):
-    def __init__(self):
-        super().__init__()
-
-        self.tokens.append("run")
-
-    @staticmethod
-    def from_options(**kwargs):
-        return RunCommand().options(**kwargs)
+    def as_string(self):
+        return str(self)
 
 
 class NBDriver(Driver):
@@ -134,10 +194,10 @@ class NBDriver(Driver):
     def destroy(self):
         self.filetree("remote").remove("root", remote=self.hosts)
 
-    def commands(self, commands: list[tuple[en.Host, Union[str, Command]]]):
+    def commands(self, commands: list[tuple[en.Host, str]]):
         hosts = []
         for host, command in commands:
-            host.extra.update(command=str(command))
+            host.extra.update(command=command)
             hosts.append(host)
 
             logging.info(f"[{host.address}] Running command `{command}`.")
@@ -151,7 +211,7 @@ class NBDriver(Driver):
         for host in hosts:
             host.extra.update(command=None)
 
-    def command(self, command: Union[str, Command], host: Optional[en.Host] = None):
+    def command(self, command: str, host: Optional[en.Host] = None):
         if host is None:
             host = self.hosts[0]
 

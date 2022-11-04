@@ -7,9 +7,9 @@ from pathlib import Path
 import enoslib as en
 import pandas as pd
 
-from drivers import CassandraDriver, NBDriver, RunCommand
-from resources import G5kResources
-from util import FileTree, Infer, CSVInput
+from experiment.drivers import CassandraDriver, NBDriver, RunCommand, StartCommand, AwaitCommand, StopCommand, Scenario
+from experiment.resources import G5kResources
+from experiment.util import FileTree, Infer, CSVInput
 
 LOCAL_FILETREE = FileTree().define([
     {"path": str(Path(__file__).parent), "tags": ["root"]},
@@ -20,16 +20,6 @@ LOCAL_FILETREE = FileTree().define([
     {"path": f"@root/input", "tags": ["input"]},
     {"path": f"@root/output", "tags": ["output"]},
 ])
-
-NB_ALIAS = "xp"
-NB_STDOUT_DRIVER = "stdout"
-NB_CQL_DRIVER = "cqld4"
-NB_LOCALDC = "datacenter1"
-NB_BLOCK_CSV_FREQS = "block:csv-freqs"
-NB_BLOCK_CSV_SIZES = "block:csv-sizes"
-NB_BLOCK_SCHEMA = "block:schema"
-NB_BLOCK_RAMPUP = "block:rampup"
-NB_BLOCK_MAIN = "block:main.*"
 
 DSTAT_SLEEP_IN_SEC = 5
 
@@ -190,41 +180,39 @@ def run(site: str,
             if execute_rampup:
                 logging.info("Executing rampup phase.")
 
-                # Create schema
-                schema_options = {
-                    "driver": NB_CQL_DRIVER,
-                    "driverconfig": nb_driver_config,
-                    "workload": nb_workload_config,
-                    "alias": NB_ALIAS,
-                    "tags": NB_BLOCK_SCHEMA,
-                    "threads": 1,
-                    "errors": "warn,retry",
-                    "host": cassandra.get_host_address(0),
-                    "localdc": NB_LOCALDC,
-                    "rf": int(_rf)
-                }
-
-                nb.command(RunCommand.from_options(**schema_options))
-
-                # Insert data
-                rampup_options = {
-                    "driver": NB_CQL_DRIVER,
-                    "driverconfig": nb_driver_config,
-                    "workload": nb_workload_config,
-                    "alias": NB_ALIAS,
-                    "tags": NB_BLOCK_RAMPUP,
-                    "threads": "auto",
-                    "cyclerate": rampup_rate_limit,
-                    "cycles": f"1..{int(_keys) + 1}",
-                    "stride": int(_client_stride),
-                    "errors": "warn,retry",
-                    "host": cassandra.get_host_address(0),
-                    "localdc": NB_LOCALDC,
-                    "keysize": int(_key_size),
-                    "valuesizedist": f"'{_value_size_dist}'"
-                }
-
-                nb.command(RunCommand.from_options(**rampup_options))
+                nb.command(
+                    Scenario.create(
+                        RunCommand.create(**{
+                            "alias": "schema",
+                            "driver": "cqld4",
+                            "driverconfig": nb_driver_config,
+                            "workload": nb_workload_config,
+                            "tags": "block:schema",
+                            "threads": 1,
+                            "errors": "warn,retry",
+                            "host": cassandra.get_host_address(0),
+                            "localdc": "datacenter1",
+                            "rf": int(_rf)
+                        }),
+                        RunCommand.create(**{
+                            "alias": "rampup",
+                            "driver": "cqld4",
+                            "driverconfig": nb_driver_config,
+                            "workload": nb_workload_config,
+                            "tags": "block:rampup",
+                            "threads": "auto",
+                            "cyclerate": rampup_rate_limit,
+                            "cycles": f"1..{int(_keys) + 1}",
+                            "stride": int(_client_stride),
+                            "errors": "warn,retry",
+                            "host": cassandra.get_host_address(0),
+                            "localdc": "datacenter1",
+                            "keysize": int(_key_size),
+                            "valuesizedist": f"'{_value_size_dist}'"
+                        })
+                    )
+                    .as_string()
+                )
 
                 # Flush memtable to SSTable
                 cassandra.flush("baselines", "keyvalue")
@@ -245,44 +233,44 @@ def run(site: str,
                     {"path": "@root/hosts", "tags": ["hosts"]}
                 ]).build()
 
-                main_options = {
-                    "driver": NB_CQL_DRIVER,
+                read_params = {
+                    "alias": "read",
+                    "driver": "cqld4",
                     "driverconfig": nb_driver_config,
                     "workload": nb_workload_config,
-                    "alias": NB_ALIAS,
-                    "tags": NB_BLOCK_MAIN,
-                    "threads": _client_threads,
-                    "stride": _client_stride,
+                    "tags": "block:main-read",
+                    "threads": int(_client_threads),
+                    "stride": int(_client_stride),
                     "errors": "timer",
                     "host": cassandra.get_host_address(0),
-                    "localdc": NB_LOCALDC,
+                    "localdc": "datacenter1",
                     "keydist": f"'{_key_dist}'",
                     "keysize": int(_key_size),
-                    "valuesizedist": f"'{_value_size_dist}'",
-                    "readratio": int(_read_ratio),
-                    "writeratio": int(_write_ratio)
+                    "valuesizedist": f"'{_value_size_dist}'"
                 }
 
                 if main_rate_limit_per_client >= MIN_RATE_LIMIT:
-                    main_options["cyclerate"] = main_rate_limit_per_client
+                    read_params["cyclerate"] = main_rate_limit_per_client
 
                 main_cmds = []
                 for index, host in enumerate(nb.hosts):
                     start_cycle = int(index * ops_per_client)
                     end_cycle = int(start_cycle + ops_per_client)
 
-                    main_options["cycles"] = f"{start_cycle}..{end_cycle}"
-
-                    main_cmd = RunCommand \
-                        .from_options(**main_options) \
-                        .logs_dir(nb_data_path) \
-                        .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}") \
-                        .log_histostats(nb_data_path / f"histostats.csv:{histogram_filter}") \
-                        .report_summary_to(nb_data_path / "summary.txt") \
-                        .report_csv_to(nb_data_path / "csv") \
+                    main_cmds.append((
+                        host,
+                        Scenario.create(
+                            StartCommand.create(**read_params, cycles=f"{start_cycle}..{end_cycle}"),
+                            AwaitCommand.create("read")
+                        )
+                        .logs_dir(nb_data_path)
+                        .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}")
+                        .log_histostats(nb_data_path / f"histostats.csv:{histogram_filter}")
+                        .report_summary_to(nb_data_path / "summary.txt")
+                        .report_csv_to(nb_data_path / "csv")
                         .report_interval(report_interval)
-
-                    main_cmds.append((host, main_cmd))
+                        .as_string()
+                    ))
 
                 _tmp_dstat_path = run_output_ft.path("dstat")
                 _tmp_data_path = run_output_ft.path("data")

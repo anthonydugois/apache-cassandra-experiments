@@ -2,7 +2,7 @@ from typing import Optional, Union
 
 import enoslib as en
 
-from util import FileTree
+from experiment.util import FileTree
 
 
 class MissingHostsException(Exception):
