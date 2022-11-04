@@ -70,7 +70,7 @@ class InferMethod:
 
 class MeanRateInfer(InferMethod):
     def __init__(self, basepath: Path):
-        super().__init__(basepath, "run-*", "**/*.result.csv")
+        super().__init__(basepath, "run-*", "**/read.result.csv")
 
         self.rate = 1.0
         self.start_time = 0.0
