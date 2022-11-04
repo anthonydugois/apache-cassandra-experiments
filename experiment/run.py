@@ -7,9 +7,9 @@ from pathlib import Path
 import enoslib as en
 import pandas as pd
 
-from experiment.drivers import CassandraDriver, NBDriver, RunCommand, StartCommand, AwaitCommand, StopCommand, Scenario
-from experiment.resources import G5kResources
-from experiment.util import FileTree, Infer, CSVInput
+from .drivers import CassandraDriver, NBDriver, RunCommand, StartCommand, AwaitCommand, StopCommand, Scenario
+from .resources import G5kResources
+from .util import FileTree, Infer, CSVInput
 
 LOCAL_FILETREE = FileTree().define([
     {"path": str(Path(__file__).parent), "tags": ["root"]},
