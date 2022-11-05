@@ -291,14 +291,22 @@ def run(site: str,
                     write_end = int(write_start + write_ops_per_client)
                     write_cycles = f"{write_start}..{write_end}"
 
-                    main_cmds.append((
-                        host,
-                        Scenario.create(
+                    if _write_ratio > 0:
+                        commands = [
                             StartCommand.create(**read_params, cycles=read_cycles),
                             StartCommand.create(**write_params, cycles=write_cycles),
                             AwaitCommand.create("read"),
                             StopCommand.create("write")
-                        )
+                        ]
+                    else:
+                        commands = [
+                            StartCommand.create(**read_params, cycles=read_cycles),
+                            AwaitCommand.create("read")
+                        ]
+
+                    main_cmds.append((
+                        host,
+                        Scenario.create(*commands)
                         .logs_dir(nb_data_path)
                         .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}")
                         .log_histostats(nb_data_path / f"histostats.csv:{histogram_filter}")
