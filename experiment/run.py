@@ -218,7 +218,6 @@ def run(site: str,
                 cassandra.flush("baselines", "keyvalue")
 
             logging.info(cassandra.tablestats("baselines", "keyvalue"))
-            logging.info(cassandra.du("{{remote_container_data_path}}/data/baselines"))
 
             if execute_main:
                 logging.info("Executing main phase.")

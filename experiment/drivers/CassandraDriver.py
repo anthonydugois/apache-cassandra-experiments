@@ -295,13 +295,6 @@ class CassandraDriver(Driver):
 
         return results[0].payload["stdout"]
 
-    def du(self, path: str):
-        with en.actions(roles=self.hosts[0]) as actions:
-            actions.shell(cmd=f"docker exec {CassandraDriver.CONTAINER_NAME} du -sh {path}")
-            results = actions.results
-
-        return results[0].payload["stdout"]
-
     def pull_results(self, basepath: Path):
         for host in self.hosts:
             local_path = basepath / host.address
