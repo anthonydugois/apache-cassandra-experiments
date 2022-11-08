@@ -1879,7 +1879,7 @@ drop_compact_storage_enabled: false
 advanced_scheduling: true
 
 replica_selector:
-  - class_name: fr.ens.cassandra.se.DynamicSnitchingSelector
+  - class_name: fr.ens.cassandra.se.selector.DynamicSnitchingSelector
 
 local_read_queue:
-  - class_name: fr.ens.cassandra.se.SimpleReadQueue
+  - class_name: fr.ens.cassandra.se.local.FIFOReadQueue
