@@ -55,7 +55,7 @@ def run(site: str,
     ]).build()
 
     csv_input.view().to_csv(output_ft.path("root") / "input.all.csv")
-    csv_input.view(key="input").to_csv(output_ft.path("root") / "input.csv")
+    csv_input.view("input").to_csv(output_ft.path("root") / "input.csv")
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64,
     # which is not usable in the resource driver.
