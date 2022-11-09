@@ -584,13 +584,13 @@ seed_provider:
 # On the other hand, since writes are almost never IO bound, the ideal
 # number of "concurrent_writes" is dependent on the number of cores in
 # your system; (8 * number_of_cores) is a good rule of thumb.
-concurrent_reads: 128
-concurrent_writes: 128
-concurrent_counter_writes: 128
+concurrent_reads: 32
+concurrent_writes: 144
+concurrent_counter_writes: 32
 
 # For materialized view writes, as there is a read involved, so this should
 # be limited by the less of concurrent reads or concurrent writes.
-concurrent_materialized_view_writes: 128
+concurrent_materialized_view_writes: 32
 
 # Maximum memory to use for inter-node and client-server networking buffers.
 #
