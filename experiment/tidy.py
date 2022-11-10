@@ -121,7 +121,7 @@ def tidy(data_path: str,
                     metric_ms = np.concatenate(metric_df
                                                .groupby(["t"])
                                                .count()
-                                               .iloc[:, "value"]
+                                               .loc[:, "value"]
                                                .apply(lambda value: np.arange(0, 1, 1 / value))
                                                .values)
                     metric_df["t"] = metric_df["t"] + metric_ms
