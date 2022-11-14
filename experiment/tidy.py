@@ -32,7 +32,7 @@ def tidy(data_path: str,
         "dstat_hosts": [],
         "latency": [],
         "timeseries": [],
-        "metrics": []
+        # "metrics": []
     }
 
     for _id, params in parameters.iterrows():
@@ -118,31 +118,31 @@ def tidy(data_path: str,
                     dfs["timeseries"].append(ts_df)
 
             # Process Metrics results
-            for _path in _host_path.glob("*.grid5000.fr"):
-                _metric_path = _path / "metrics"
-                _metric_files = list(_metric_path.glob("**/org.apache.cassandra.metrics.*.csv"))
-                if len(_metric_files) <= 0:
-                    logging.warning(f"[{_name}/run-{run_index}] No Metrics file in {_metric_path}.")
-                    continue
-
-                for _metric_file in _metric_files:
-                    metric_df = pd.read_csv(_metric_file, index_col=False)
-
-                    metric_ms = np.concatenate(metric_df
-                                               .groupby(["t"])
-                                               .count()
-                                               .loc[:, "value"]
-                                               .apply(lambda value: np.arange(0, 1, 1 / value))
-                                               .values)
-                    metric_df["t"] = metric_df["t"] + metric_ms
-
-                    metric_df.rename(columns={"t": "epoch"}, inplace=True)
-                    metric_df["id"] = _id
-                    metric_df["run"] = run_index
-                    metric_df["host_address"] = _path.name
-                    metric_df["name"] = _metric_file.stem
-
-                    dfs["metrics"].append(metric_df)
+            # for _path in _host_path.glob("*.grid5000.fr"):
+            #     _metric_path = _path / "metrics"
+            #     _metric_files = list(_metric_path.glob("**/org.apache.cassandra.metrics.*.csv"))
+            #     if len(_metric_files) <= 0:
+            #         logging.warning(f"[{_name}/run-{run_index}] No Metrics file in {_metric_path}.")
+            #         continue
+            #
+            #     for _metric_file in _metric_files:
+            #         metric_df = pd.read_csv(_metric_file, index_col=False)
+            #
+            #         metric_ms = np.concatenate(metric_df
+            #                                    .groupby(["t"])
+            #                                    .count()
+            #                                    .loc[:, "value"]
+            #                                    .apply(lambda value: np.arange(0, 1, 1 / value))
+            #                                    .values)
+            #         metric_df["t"] = metric_df["t"] + metric_ms
+            #
+            #         metric_df.rename(columns={"t": "epoch"}, inplace=True)
+            #         metric_df["id"] = _id
+            #         metric_df["run"] = run_index
+            #         metric_df["host_address"] = _path.name
+            #         metric_df["name"] = _metric_file.stem
+            #
+            #         dfs["metrics"].append(metric_df)
 
             # Process Latency histogram
             full_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
