@@ -2,6 +2,7 @@ import logging
 import pathlib
 import tarfile
 from typing import cast, Iterable, Hashable
+from io import StringIO
 
 import pandas as pd
 import numpy as np
@@ -66,7 +67,16 @@ def tidy(data_path: str,
                         continue
 
                     for _dstat_file in _dstat_files:
-                        dstat_df = pd.read_csv(_dstat_file, skiprows=4, header=[0, 1])
+                        with open(_dstat_file, "r") as dstat_file:
+                            dstat_lines = dstat_file.readlines()[4:]
+                            dstat_headers, dstat_rows = dstat_lines[:2], dstat_lines[2:]
+
+                            dstat_headers = [line.strip("\n") for line in dstat_headers]
+                            dstat_rows = [line.strip(",\n") for line in dstat_rows]
+                            dstat_content = "\n".join([*dstat_headers, *dstat_rows])
+
+                        # noinspection PyTypeChecker
+                        dstat_df = pd.read_csv(StringIO(dstat_content), header=[0, 1])
 
                         dstat_cols = pd.DataFrame(dstat_df.columns.tolist())
                         dstat_cols.loc[dstat_cols[0].str.startswith("Unnamed:"), 0] = np.nan
