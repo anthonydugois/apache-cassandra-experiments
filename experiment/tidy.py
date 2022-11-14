@@ -155,6 +155,8 @@ def tidy(data_path: str,
 
                 hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
                 for hist_file in _hist_files:
+                    logging.info(f"[{_name}/run-{run_index}] {hist_file}")
+
                     hist_df = pd.read_csv(hist_file, skiprows=3, index_col=0)
                     hist_df.reset_index(drop=True, inplace=True)
 
@@ -169,35 +171,12 @@ def tidy(data_path: str,
                         decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
                         hist_count = decoded_hist.get_total_count()
 
+                        logging.info(f"Getting {hist_count} values from {start_time} to {end_time}"
+                                     f" (length: {interval_length}).")
+
                         if hist_count > 0:
                             hist.add(decoded_hist)
-
-                            logging.info(f"[{_name}/run-{run_index}] {hist_file}"
-                                         f" - Added {hist_count} values from {start_time} to {end_time}"
-                                         f" (length: {interval_length}).")
-                        else:
-                            logging.info(f"[{_name}/run-{run_index}] {hist_file}"
-                                         f" - Ignoring values from {start_time} to {end_time}"
-                                         f" (length: {interval_length}).")
-
-                # client_latency_row = dict(count=hist.get_total_count(),
-                #                           min=hist.get_min_value(),
-                #                           max=hist.get_max_value(),
-                #                           mean=hist.get_mean_value(),
-                #                           p25=hist.get_value_at_percentile(25),
-                #                           p50=hist.get_value_at_percentile(50),
-                #                           p75=hist.get_value_at_percentile(75),
-                #                           p90=hist.get_value_at_percentile(90),
-                #                           p95=hist.get_value_at_percentile(95),
-                #                           p98=hist.get_value_at_percentile(98),
-                #                           p99=hist.get_value_at_percentile(99),
-                #                           p999=hist.get_value_at_percentile(99.9),
-                #                           p9999=hist.get_value_at_percentile(99.99),
-                #                           id=_id,
-                #                           run=run_index,
-                #                           host_address=_path.name)
-                #
-                # dfs["client_latency"].append(pd.DataFrame(client_latency_row, index=[0]))
+                            logging.info(f"Added histogram.")
 
                 if hist.get_total_count() > 0:
                     full_hist.add(hist)
