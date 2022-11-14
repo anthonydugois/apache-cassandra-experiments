@@ -162,19 +162,23 @@ def tidy(data_path: str,
                     hist_df = hist_df[(hist_df["StartTimestamp"] >= start_time) &
                                       ((hist_df["StartTimestamp"] + hist_df["Interval_Length"]) <= end_time)]
 
-                    hists = hist_df["Interval_Compressed_Histogram"]
+                    for _, hist_row in hist_df.iterrows():
+                        start_time = hist_row["StartTimestamp"]
+                        interval_length = hist_row["Interval_Length"]
+                        end_time = start_time + interval_length
+                        decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
+                        hist_count = decoded_hist.get_total_count()
 
-                    hist_count = hists.size
-                    hist_index = 0
-
-                    for _, encoded_hist in hists.items():
-                        decoded_hist = HdrHistogram.decode(encoded_hist)
-
-                        if decoded_hist.get_total_count() > 0:
+                        if hist_count > 0:
                             hist.add(decoded_hist)
-                            hist_index += 1
 
-                        logging.info(f"[{_name}/run-{run_index}] {hist_file} ({hist_index}/{hist_count})")
+                            logging.info(f"[{_name}/run-{run_index}] {hist_file}"
+                                         f" - Added {hist_count} values from {start_time} to {end_time}"
+                                         f" (length: {interval_length}).")
+                        else:
+                            logging.info(f"[{_name}/run-{run_index}] {hist_file}"
+                                         f" - Ignoring values from {start_time} to {end_time}"
+                                         f" (length: {interval_length}).")
 
                 # client_latency_row = dict(count=hist.get_total_count(),
                 #                           min=hist.get_min_value(),
