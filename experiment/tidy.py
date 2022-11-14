@@ -165,14 +165,15 @@ def tidy(data_path: str,
                                       ((hist_df["StartTimestamp"] + hist_df["Interval_Length"]) <= end_time)]
 
                     for _, hist_row in hist_df.iterrows():
-                        start_time = hist_row["StartTimestamp"]
-                        interval_length = hist_row["Interval_Length"]
-                        end_time = start_time + interval_length
+                        hist_start_time = hist_row["StartTimestamp"]
+                        hist_interval_length = hist_row["Interval_Length"]
+                        hist_end_time = hist_start_time + hist_interval_length
+
                         decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
                         hist_count = decoded_hist.get_total_count()
 
-                        logging.info(f"Getting {hist_count} values from {start_time} to {end_time}"
-                                     f" (length: {interval_length}).")
+                        logging.info(f"Getting {hist_count} values from {hist_start_time} to {hist_end_time}"
+                                     f" (length: {hist_interval_length}).")
 
                         if hist_count > 0:
                             hist.add(decoded_hist)
