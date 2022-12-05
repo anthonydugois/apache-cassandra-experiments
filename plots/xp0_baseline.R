@@ -67,7 +67,7 @@ df.ts %>%
 
 dev.off()
 
-tikz(file = "plots/output/xp0_lat.tex", width = 3, height = 3)
+tikz(file = "plots/output/xp0_lat.tex", width = 2.8, height = 2.5)
 
 TO_MS <- 1 / 1e6
 
@@ -85,7 +85,7 @@ df.lat %>%
     mutate(name = factor(name, levels = lev.name, labels = lab.name)) %>%
     ggplot(mapping = aes(x = name)) %+%
     geom_col(mapping = aes(y = mean_stat_value * TO_MS,
-                           fill = name), colour = "black", width = 0.5) %+%
+                           fill = name), colour = "black", width = 0.4) %+%
     geom_errorbar(mapping = aes(ymin = min_stat_value * TO_MS,
                                 ymax = max_stat_value * TO_MS), width = 0.1) %+%
     facet_wrap(vars(stat_name), scales = "free") %+%
