@@ -1,4 +1,6 @@
 from typing import Optional, Union
+from pathlib import Path
+from yaml import safe_load
 
 import enoslib as en
 
@@ -102,3 +104,11 @@ class Driver:
 
             with en.actions(roles=src_hosts) as actions:
                 actions.synchronize(**args)
+
+    def login(self):
+        # Login to Docker Hub to bypass rate-limiting
+        with Path(".credentials").open("r") as file:
+            cred = safe_load(file)
+
+        with en.actions(roles=self.hosts) as actions:
+            actions.docker_login(username=cred["username"], password=cred["password"])

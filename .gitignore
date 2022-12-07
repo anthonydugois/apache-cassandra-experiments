@@ -2,6 +2,7 @@ output
 notebooks
 logs
 archives
+.credentials
 
 # EnOSlib
 cachedir

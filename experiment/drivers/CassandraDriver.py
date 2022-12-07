@@ -133,6 +133,8 @@ class CassandraDriver(Driver):
         2. Create Cassandra containers.
         """
 
+        self.login()
+
         with en.actions(roles=self.hosts) as actions:
             actions.file(path="{{remote_root_path}}", state="directory")
             actions.file(path="{{remote_data_path}}", state="directory", mode="777")
