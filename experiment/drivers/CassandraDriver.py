@@ -241,8 +241,8 @@ class CassandraDriver(Driver):
         Note that this does not remove data.
         """
 
-        self.nodetool("disablegossip")
-        self.nodetool("drain")
+        # self.nodetool("disablegossip")
+        # self.nodetool("drain")
 
         for host in self.hosts[1:]:
             self.nodetool(f"assassinate {host.address}", [self.hosts[0]])
