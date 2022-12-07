@@ -244,6 +244,9 @@ class CassandraDriver(Driver):
         self.nodetool("disablegossip")
         self.nodetool("drain")
 
+        for host in self.hosts[1:]:
+            self.nodetool(f"assassinate {host.address}", [self.hosts[0]])
+
         with en.actions(roles=self.hosts) as actions:
             # Stop and remove container
             actions.docker_container(name=CassandraDriver.CONTAINER_NAME, state="absent")
