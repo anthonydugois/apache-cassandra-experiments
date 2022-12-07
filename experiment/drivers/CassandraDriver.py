@@ -241,11 +241,7 @@ class CassandraDriver(Driver):
         Note that this does not remove data.
         """
 
-        # self.nodetool("disablegossip")
-        # self.nodetool("drain")
-
-        for host in self.hosts[1:]:
-            self.nodetool(f"assassinate {host.address}", [self.hosts[0]])
+        self.nodetool("drain")
 
         with en.actions(roles=self.hosts) as actions:
             # Stop and remove container
@@ -257,6 +253,10 @@ class CassandraDriver(Driver):
             # Remove Cassandra caches
             actions.file(path="{{remote_data_path}}/saved_caches", state="absent")
             actions.file(path="{{remote_data_path}}/hints", state="absent")
+
+            # Remove Cassandra gossip state
+            actions.shell(cmd="rm -rf {{remote_data_path}}/data/system/peers-*")
+            actions.shell(cmd="rm -rf {{remote_data_path}}/data/system/peers_v2-*")
 
             # Remove Cassandra metrics
             actions.file(path="{{remote_metrics_path}}", state="absent")
