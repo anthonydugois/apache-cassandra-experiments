@@ -1879,11 +1879,15 @@ drop_compact_storage_enabled: false
 advanced_scheduling: true
 
 replica_selector:
-  - class_name: fr.ens.cassandra.se.selector.DynamicSnitchingSelector
+  - class_name: fr.ens.cassandra.se.selector.PriorityDynamicSnitchingSelector
 
 local_read_queue:
-  - class_name: fr.ens.cassandra.se.local.read.FIFOReadQueue
+  - class_name: fr.ens.cassandra.se.local.read.MultilevelReadQueue
+    parameters:
+      - levels: '2'
 
 oracles:
+  size:
+    - class_name: fr.ens.cassandra.se.oracle.KeySizeOracle
 
 state_feedback:

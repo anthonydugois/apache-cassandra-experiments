@@ -254,7 +254,8 @@ def run(site: str,
                     "host": cassandra.get_host_address(0),
                     "localdc": "datacenter1",
                     "keydist": f"'{_key_dist}'",
-                    "keysize": int(_key_size)
+                    "keysize": int(_key_size),
+                    "valuesizedist": f"'{_value_size_dist}'"
                 }
 
                 write_params = {

@@ -3,7 +3,7 @@ bindings:
     SaveLong("id") -> long;
     TEMPLATE(valuesizedist,); ToLong() -> long;
     SaveLong("size") -> long;
-    Template("{}-{}", Flow(LoadLong("size") -> long, Pad("0", 8) -> String), Flow(LoadLong("id") -> long, Pad("0", TEMPLATE(keysize,16)) -> String)) -> String
+    Template("{}_{}", Flow(LoadLong("size") -> long, Pad("0", 8) -> String), Flow(LoadLong("id") -> long, Pad("0", TEMPLATE(keysize,16)) -> String)) -> String
   seq_value:
     SaveLong("id") -> long;
     TEMPLATE(valuesizedist,); ToLong() -> long;
@@ -17,7 +17,7 @@ bindings:
     SaveLong("id") -> long;
     TEMPLATE(valuesizedist,); ToLong() -> long;
     SaveLong("size") -> long;
-    Template("{}-{}", Flow(LoadLong("size") -> long, Pad("0", 8) -> String), Flow(LoadLong("id") -> long, Pad("0", TEMPLATE(keysize,16)) -> String)) -> String
+    Template("{}_{}", Flow(LoadLong("size") -> long, Pad("0", 8) -> String), Flow(LoadLong("id") -> long, Pad("0", TEMPLATE(keysize,16)) -> String)) -> String
   rw_value:
     SaveLong("id") -> long;
     Hash() -> long;
