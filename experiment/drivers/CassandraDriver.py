@@ -241,7 +241,7 @@ class CassandraDriver(Driver):
         Note that this does not remove data.
         """
 
-        self.nodetool("drain")
+        # self.nodetool("drain")
 
         with en.actions(roles=self.hosts) as actions:
             # Stop and remove container
