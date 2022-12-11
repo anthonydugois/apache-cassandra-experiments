@@ -22,6 +22,15 @@ print(df.lat %>%
           filter(name %in% c("xp0_zipf_base_nom", "xp0_zipf_se_nom")) %>%
           pivot_longer(c(mean, p50, p75, p99), names_to = "stat_name", values_to = "stat_value") %>%
           group_by(id, name, stat_name) %>%
+          summarise(sd_value = sd(stat_value), stat_value = mean(stat_value), .groups = "drop") %>%
+          mutate(stat_value = stat_value / 1e6, sd_value = sd_value / 1e6) %>%
+          select(stat_name, stat_value, sd_value, name))
+
+print(df.lat %>%
+          inner_join(df.in, by = "id") %>%
+          filter(name %in% c("xp0_zipf_base_nom", "xp0_zipf_se_nom")) %>%
+          pivot_longer(c(mean, p50, p75, p99), names_to = "stat_name", values_to = "stat_value") %>%
+          group_by(id, name, stat_name) %>%
           summarise(stat_value = mean(stat_value), .groups = "drop") %>%
           mutate(stat_value = stat_value / 1e6) %>%
           select(stat_name, stat_value, name) %>%
