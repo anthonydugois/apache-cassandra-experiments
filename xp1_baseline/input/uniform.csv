@@ -1,5 +1,0 @@
-id,name,repeat,version,hosts,clients,threads,stride,ops,throughput,throughput_ref,rf,value_size_in_bytes,bytes_per_host,rampup_mode,docker_image,config_file,driver_config_file,workload_file
-s1,base-1,5,base,6,1,256,1000,50000000,1,NA,3,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,fixed-uniform.yaml
-s2,se-1,5,se,6,1,256,1000,50000000,1,NA,3,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-se.yaml,main.conf,fixed-uniform.yaml
-s3,base-0.8,5,base,6,1,256,1000,50000000,0.8,s1,3,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-base:latest,cassandra-base.yaml,main.conf,fixed-uniform.yaml
-s4,se-0.8,5,se,6,1,256,1000,50000000,0.8,s1,3,1024,200000000000,keep_between_sets,adugois1/apache-cassandra-se:latest,cassandra-se.yaml,main.conf,fixed-uniform.yaml

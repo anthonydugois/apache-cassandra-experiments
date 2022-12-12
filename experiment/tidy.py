@@ -216,9 +216,11 @@ def tidy(data_path: str,
 
         with tarfile.open(_archive_path / f"{_data_path.name}.tar.gz", mode="w:gz") as file:
             file.add(_data_path, arcname=_data_path.name)
+            logging.info(f"Archive successfully created in {file.name}")
 
         with tarfile.open(_archive_path / f"{_data_path.name}-light.tar.gz", mode="w:gz") as file:
             file.add(_tidy_path, arcname=f"{_data_path.name}-light")
+            logging.info(f"Archive successfully created in {file.name}")
 
 
 if __name__ == "__main__":

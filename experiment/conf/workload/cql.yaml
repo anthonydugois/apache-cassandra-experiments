@@ -10,8 +10,6 @@ bindings:
     SaveLong("size") -> long;
     LoadLong("id") -> long;
     CharBufImage("a-zA-Z0-9", 10000000, LoadLong("size") -> long) -> java.nio.CharBuffer; ToString() -> String
-  seq_value_size:
-    TEMPLATE(valuesizedist,); ToLong() -> long
   rw_key:
     TEMPLATE(keydist,); ToLong() -> long;
     SaveLong("id") -> long;
@@ -27,16 +25,6 @@ bindings:
     CharBufImage("a-zA-Z0-9", 10000000, LoadLong("size") -> long) -> java.nio.CharBuffer; ToString() -> String
 
 blocks:
-  csv-freqs:
-    ops:
-      write-row:
-        stmt: |
-          {rw_key}
-  csv-sizes:
-    ops:
-      write-row:
-        stmt: |
-          {seq_key},{seq_value_size}
   schema:
     params:
       timeout: 30.0
