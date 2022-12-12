@@ -1881,7 +1881,7 @@ advanced_scheduling: true
 replica_selector:
   - class_name: fr.ens.cassandra.se.selector.PopularityAwarePrimarySelector
     parameters:
-      - threshold: '0.001'
+      - threshold: '0.0001'
 
 local_read_queue:
   - class_name: fr.ens.cassandra.se.local.read.FIFOReadQueue
