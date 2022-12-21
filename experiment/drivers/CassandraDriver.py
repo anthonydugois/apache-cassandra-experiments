@@ -242,7 +242,6 @@ class CassandraDriver(Driver):
 
         for index, host in enumerate(reversed(self.hosts)):
             self.nodetool("disablebinary", [host])
-            self.nodetool("disablethrift", [host])
             self.nodetool("disablegossip", [host])
             self.nodetool("drain", [host])
 
