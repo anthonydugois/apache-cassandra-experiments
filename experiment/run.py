@@ -207,7 +207,7 @@ def run(site: str,
                     {"path": "@root/tmp", "tags": ["tmp"]},
                     {"path": "@tmp/dstat", "tags": ["dstat"]},
                     {"path": "@tmp/data", "tags": ["data"]},
-                    {"path": "@tmp/metrics", "tags": ["metrics"]},
+                    {"path": "@tmp/log", "tags": ["log"]},
                     {"path": "@root/clients", "tags": ["clients"]},
                     {"path": "@root/hosts", "tags": ["hosts"]}
                 ]).build()
@@ -230,7 +230,7 @@ def run(site: str,
                     "tags": "block:main-read",
                     "threads": read_threads,
                     "stride": int(_client_stride),
-                    "errors": "timer",
+                    "errors": "warn,timer",
                     "host": cassandra.get_host_address(0),
                     "localdc": "datacenter1",
                     "keydist": f"'{_key_dist}'",
@@ -246,7 +246,7 @@ def run(site: str,
                     "tags": "block:main-write",
                     "threads": write_threads,
                     "stride": int(_client_stride),
-                    "errors": "timer",
+                    "errors": "warn,timer",
                     "host": cassandra.get_host_address(0),
                     "localdc": "datacenter1",
                     "keydist": f"'{_key_dist}'",
@@ -298,7 +298,7 @@ def run(site: str,
 
                 _tmp_dstat_path = run_output_ft.path("dstat")
                 _tmp_data_path = run_output_ft.path("data")
-                _tmp_metrics_path = run_output_ft.path("metrics")
+                _tmp_log_path = run_output_ft.path("log")
 
                 with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
                     # Make sure Dstat is running when we start experiment
@@ -308,10 +308,14 @@ def run(site: str,
                     # Let the system recover before killing Dstat
                     time.sleep(DSTAT_SLEEP_IN_SEC)
 
+                # Properly shutdown Cassandra before pulling data
+                cassandra.shutdown()
+
                 # Get NoSQLBench results
                 nb.pull_results(_tmp_data_path)
+
                 # Get Cassandra metrics
-                cassandra.pull_results(_tmp_metrics_path)
+                cassandra.pull_results(_tmp_log_path)
 
                 # Save results
                 _client_path = run_output_ft.path("clients")
@@ -345,14 +349,17 @@ def run(site: str,
                     else:
                         logging.warning(f"{_dstat_dir} does not exist.")
 
-                    _metrics_dir = _tmp_metrics_path / host.address / "metrics"
+                    _metrics_dir = _tmp_log_path / host.address / "metrics"
                     if _metrics_dir.exists():
                         shutil.copytree(_metrics_dir, _host_path / host.address / "metrics")
                     else:
                         logging.warning(f"{_metrics_dir} does not exist.")
 
-                with (_host_path / "cassandra.log").open("w") as file:
-                    file.write(cassandra.logs())
+                    _log_dir = _tmp_log_path / host.address / "log"
+                    if _log_dir.exists():
+                        shutil.copytree(_log_dir, _host_path / host.address / "log")
+                    else:
+                        logging.warning(f"{_log_dir} does not exist.")
 
                 run_output_ft.remove("tmp")
 

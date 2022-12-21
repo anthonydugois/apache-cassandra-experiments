@@ -20,7 +20,7 @@ class InvalidSeedCountException(Exception):
 
 class CassandraDriver(Driver):
     CONTAINER_NAME = "cassandra"
-    START_DELAY_IN_SECONDS = 120
+    DELAY_IN_SECONDS = 120
 
     def __init__(self, docker_image: str):
         super().__init__()
@@ -61,19 +61,20 @@ class CassandraDriver(Driver):
             remote_root_path = "/root/cassandra"
             remote_conf_path = f"{remote_root_path}/{conf_dir}"
 
-            remote_data_path = "/tmp/storage-data"  # Warning: make sure there is enough space on disk
-            remote_static_path = "/tmp/static-data"
+            # Warning: make sure there is enough space on disk
+            remote_data_path = "/tmp/storage-data"
+            remote_log_path = "/tmp/storage-log/log"
             remote_metrics_path = "/tmp/metrics-data/metrics"
 
             host.extra.update(remote_root_path=remote_root_path)
             host.extra.update(remote_conf_path=remote_conf_path)
             host.extra.update(remote_data_path=remote_data_path)
-            host.extra.update(remote_static_path=remote_static_path)
+            host.extra.update(remote_log_path=remote_log_path)
             host.extra.update(remote_metrics_path=remote_metrics_path)
 
             host.extra.update(remote_container_conf_path="/etc/cassandra")
             host.extra.update(remote_container_data_path="/var/lib/cassandra")
-            host.extra.update(remote_container_static_path="/var/lib/static-data")
+            host.extra.update(remote_container_log_path="/var/log/cassandra")
             host.extra.update(remote_container_metrics_path="/metrics")
 
     def init(self, hosts: list[en.Host], seed_count=1, reset=False):
@@ -100,7 +101,6 @@ class CassandraDriver(Driver):
         with en.actions(roles=self.hosts) as actions:
             # Remove existing data
             actions.file(path="{{remote_data_path}}", state="absent")
-            actions.file(path="{{remote_static_path}}", state="absent")
 
     def create_config(self, template_path: Union[str, Path]):
         seed_addresses = ",".join(self.host_addresses(hosts=self.seeds, port=7000))
@@ -138,7 +138,7 @@ class CassandraDriver(Driver):
         with en.actions(roles=self.hosts) as actions:
             actions.file(path="{{remote_root_path}}", state="directory")
             actions.file(path="{{remote_data_path}}", state="directory", mode="777")
-            actions.file(path="{{remote_static_path}}", state="directory", mode="777")
+            actions.file(path="{{remote_log_path}}", state="directory", mode="777")
             actions.file(path="{{remote_metrics_path}}", state="directory", mode="777")
 
             # Transfer files
@@ -183,8 +183,8 @@ class CassandraDriver(Driver):
                                              "type": "bind"
                                          },
                                          {
-                                             "source": "{{remote_static_path}}",
-                                             "target": "{{remote_container_static_path}}",
+                                             "source": "{{remote_log_path}}",
+                                             "target": "{{remote_container_log_path}}",
                                              "type": "bind"
                                          },
                                          {
@@ -222,20 +222,38 @@ class CassandraDriver(Driver):
                 actions.docker_container(name=CassandraDriver.CONTAINER_NAME, state="started")
 
             # Make sure to wait at least 2 minutes for bootstrapping to finish
-            time.sleep(CassandraDriver.START_DELAY_IN_SECONDS)
+            time.sleep(CassandraDriver.DELAY_IN_SECONDS)
 
             logging.info(f"[{host.address}] Cassandra is up and running "
                          f"({index + 1}/{self.host_count}).")
 
-    def cleanup(self):
-        shutil.rmtree(self.local_global_root_path)
+    def shutdown(self):
+        """
+        Shutdown a Cassandra cluster.
+
+        Like for startup process, we stop nodes one at a time.
+        We disable communication channels, and we drain data to disk.
+
+        Then we wait for the rest of the cluster to acknowledge the
+        node deletion. This should update and keep gossip state consistent.
+
+        At the end, the cluster is ready to be destroyed.
+        """
+
+        for index, host in enumerate(reversed(self.hosts)):
+            self.nodetool("sequence disablebinary : disablethrift : disablegossip : drain", [host])
+
+            time.sleep(CassandraDriver.DELAY_IN_SECONDS)
+
+            logging.info(f"[{host.address}] Cassandra has been shutdown "
+                         f"({index + 1}/{self.host_count}).")
 
     def destroy(self):
         """
         Destroy a Cassandra instance.
 
         1. Stop and remove the Cassandra Docker container.
-        2. Remove Cassandra configuration files, caches and metrics.
+        2. Remove Cassandra configuration files, logs, caches and metrics.
         3. Drop OS caches.
 
         Note that this does not remove data.
@@ -248,13 +266,12 @@ class CassandraDriver(Driver):
             # Remove Cassandra files
             actions.file(path="{{remote_root_path}}", state="absent")
 
+            # Remove Cassandra logs
+            actions.file(path="{{remote_log_path}}", state="absent")
+
             # Remove Cassandra caches
             actions.file(path="{{remote_data_path}}/saved_caches", state="absent")
             actions.file(path="{{remote_data_path}}/hints", state="absent")
-
-            # Remove Cassandra gossip state
-            actions.shell(cmd="rm -rf {{remote_data_path}}/data/system/peers-*")
-            actions.shell(cmd="rm -rf {{remote_data_path}}/data/system/peers_v2-*")
 
             # Remove Cassandra metrics
             actions.file(path="{{remote_metrics_path}}", state="absent")
@@ -264,6 +281,9 @@ class CassandraDriver(Driver):
 
             # Drop OS caches
             actions.shell(cmd="echo 3 > /proc/sys/vm/drop_caches")
+
+    def cleanup(self):
+        shutil.rmtree(self.local_global_root_path)
 
     def nodetool(self, command: str, hosts: Optional[list[en.Host]] = None):
         """
@@ -294,13 +314,6 @@ class CassandraDriver(Driver):
         results = self.nodetool(f"tablestats {keyspace}.{table}", [self.hosts[0]])
         return results[0].payload["stdout"]
 
-    def logs(self):
-        with en.actions(roles=self.hosts[0]) as actions:
-            actions.shell(cmd=f"docker logs {CassandraDriver.CONTAINER_NAME}")
-            results = actions.results
-
-        return results[0].payload["stdout"]
-
     def pull_results(self, basepath: Path):
         for host in self.hosts:
             local_path = basepath / host.address
@@ -309,3 +322,4 @@ class CassandraDriver(Driver):
             host.extra.update(local_path=str(local_path))
 
         self.pull(dest="{{local_path}}", src="{{remote_metrics_path}}")
+        self.pull(dest="{{local_path}}", src="{{remote_log_path}}")
