@@ -241,7 +241,10 @@ class CassandraDriver(Driver):
         """
 
         for index, host in enumerate(reversed(self.hosts)):
-            self.nodetool("sequence disablebinary : disablethrift : disablegossip : drain", [host])
+            self.nodetool("disablebinary", [host])
+            self.nodetool("disablethrift", [host])
+            self.nodetool("disablegossip", [host])
+            self.nodetool("drain", [host])
 
             time.sleep(CassandraDriver.DELAY_IN_SECONDS)
 
