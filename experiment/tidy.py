@@ -15,6 +15,24 @@ HIST_MAX = 1_000_000_000_000
 HIST_DIGITS = 3
 
 
+def summarize_histogram(hist: HdrHistogram, percentiles=None):
+    if percentiles is None:
+        percentiles = range(1, 100)
+
+    row = {
+        "count": hist.get_total_count(),
+        "min": hist.get_min_value(),
+        "max": hist.get_max_value(),
+        "mean": hist.get_mean_value(),
+        "sd": hist.get_stddev()
+    }
+
+    for percentile, value in hist.get_percentile_to_value_dict(percentiles).items():
+        row[f"p{percentile}"] = value
+
+    return row
+
+
 def tidy(data_path: str,
          start_time: float,
          end_time: float,
@@ -31,6 +49,7 @@ def tidy(data_path: str,
         "dstat_clients": [],
         "dstat_hosts": [],
         "latency": [],
+        "latency_per_run": [],
         "timeseries": [],
         # "metrics": []
     }
@@ -45,6 +64,9 @@ def tidy(data_path: str,
 
         logging.info(f"[{_name}] Processing {_set_path}.")
         logging.info(f"[{_name}] Input parameters:\n\n{params}\n\n")
+
+        full_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+
         for run_index in range(_repeat):
             _run_path = _set_path / f"run-{run_index}"
             _client_path = _run_path / "clients"
@@ -145,7 +167,7 @@ def tidy(data_path: str,
             #         dfs["metrics"].append(metric_df)
 
             # Process Latency histogram
-            full_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+            cur_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
             for _path in _client_path.glob("*.grid5000.fr"):
                 _hist_path = _path / "data"
                 _hist_files = list(_hist_path.glob("**/histograms.csv"))
@@ -180,27 +202,25 @@ def tidy(data_path: str,
                             logging.info(f"Added histogram.")
 
                 if hist.get_total_count() > 0:
-                    full_hist.add(hist)
+                    cur_hist.add(hist)
 
-            dfs["latency"].append(
-                pd.DataFrame({
-                    "count": full_hist.get_total_count(),
-                    "min": full_hist.get_min_value(),
-                    "max": full_hist.get_max_value(),
-                    "mean": full_hist.get_mean_value(),
-                    "p25": full_hist.get_value_at_percentile(25),
-                    "p50": full_hist.get_value_at_percentile(50),
-                    "p75": full_hist.get_value_at_percentile(75),
-                    "p90": full_hist.get_value_at_percentile(90),
-                    "p95": full_hist.get_value_at_percentile(95),
-                    "p98": full_hist.get_value_at_percentile(98),
-                    "p99": full_hist.get_value_at_percentile(99),
-                    "p999": full_hist.get_value_at_percentile(99.9),
-                    "p9999": full_hist.get_value_at_percentile(99.99),
-                    "id": _id,
-                    "run": run_index
-                }, index=[0])
-            )
+            if cur_hist.get_total_count() > 0:
+                full_hist.add(cur_hist)
+
+            lpr_row = summarize_histogram(cur_hist)
+            lpr_row["id"] = _id
+            lpr_row["run"] = run_index
+
+            lpr_df = pd.DataFrame(lpr_row, index=[0])
+
+            dfs["latency_per_run"].append(lpr_df)
+
+        lat_row = summarize_histogram(full_hist)
+        lat_row["id"] = _id
+
+        lat_df = pd.DataFrame(lat_row, index=[0])
+
+        dfs["latency"].append(lat_df)
 
     # Save CSV files
     parameters.to_csv(_tidy_path / "input.csv")
@@ -214,12 +234,14 @@ def tidy(data_path: str,
         if not _archive_path.exists():
             _archive_path.mkdir()
 
-        with tarfile.open(_archive_path / f"{_data_path.name}.tar.gz", mode="w:gz") as file:
-            file.add(_data_path, arcname=_data_path.name)
+        full_name = f"{_data_path.name}-full"
+        with tarfile.open(_archive_path / f"{full_name}.tar.gz", mode="w:gz") as file:
+            file.add(_data_path, arcname=full_name)
             logging.info(f"Archive successfully created in {file.name}")
 
-        with tarfile.open(_archive_path / f"{_data_path.name}-light.tar.gz", mode="w:gz") as file:
-            file.add(_tidy_path, arcname=f"{_data_path.name}-light")
+        light_name = f"{_data_path.name}-light"
+        with tarfile.open(_archive_path / f"{light_name}.tar.gz", mode="w:gz") as file:
+            file.add(_tidy_path, arcname=light_name)
             logging.info(f"Archive successfully created in {file.name}")
 
 
