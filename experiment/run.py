@@ -33,11 +33,13 @@ class RateLimitFormatException(Exception):
 
 def rate_limit_from_expr(expr: str, csv_input: CSVInput, basepath: Path):
     if pd.isna(expr):
-        return 0.0
+        return "none", 0.0
     elif expr.startswith("infer="):
-        return Infer(csv_input, basepath).infer_from_expr(expr.split("=")[1])
+        return "infer", Infer(csv_input, basepath).infer_from_expr(expr.split("=")[1])
+    elif expr.startswith("linear="):
+        return "linear", float(expr.split("=")[1])
     elif expr.startswith("fixed="):
-        return float(expr.split("=")[1])
+        return "fixed", float(expr.split("=")[1])
     else:
         raise RateLimitFormatException
 
@@ -103,9 +105,8 @@ def run(site: str,
         ]).build()
 
         ops_per_client = _ops / _clients
-        rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, output_ft.path("raw"))
-        main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
-        main_rate_limit_per_client = main_rate_limit / _clients
+        rampup_rate_type, rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, output_ft.path("raw"))
+        main_rate_type, main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
 
         cassandra_hosts = list(resources.roles["cassandra"][:_hosts])
         nb_hosts = list(resources.roles["clients"][:_clients])
@@ -210,6 +211,11 @@ def run(site: str,
                 {"path": "@root/clients", "tags": ["clients"]},
                 {"path": "@root/hosts", "tags": ["hosts"]}
             ]).build()
+
+            if main_rate_type == "linear":
+                main_rate_limit = (run_index + 1) * main_rate_limit
+
+            main_rate_limit_per_client = main_rate_limit / _clients
 
             rw_total = _read_ratio + _write_ratio
             read_ratio = _read_ratio / rw_total
