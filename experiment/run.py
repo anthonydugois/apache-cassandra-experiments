@@ -214,11 +214,15 @@ def run(site: str,
                 {"path": "@root/hosts", "tags": ["hosts"]}
             ]).build()
 
-            if main_rate_type == "linear":
-                main_rate_limit = (run_index + 1) * main_rate_limit
-
-            # Do not rate limit the warmup phase; otherwise, apply the correct limit value
-            main_rate_limit_per_client = 0.0 if run_index <= 0 else main_rate_limit / _clients
+            if run_index <= 0:
+                # Do not rate limit the warmup phase
+                main_rate_limit_per_client = 0.0
+            else:
+                # Otherwise, apply the correct limit value
+                if main_rate_type == "linear":
+                    main_rate_limit_per_client = (run_index * main_rate_limit) / _clients
+                else:
+                    main_rate_limit_per_client = main_rate_limit / _clients
 
             rw_total = _read_ratio + _write_ratio
             read_ratio = _read_ratio / rw_total
