@@ -159,22 +159,19 @@ class NBDriver(Driver):
             {"path": "@root/conf", "tags": ["conf"]},
             {"path": "@conf/driver", "tags": ["driver-conf"]},
             {"path": "@conf/workload", "tags": ["workload-conf"]},
-            {"path": "@root/data", "tags": ["data"]},
-            {"path": "/tmp/static-data", "tags": ["static-data"]},
+            {"path": "@root/data", "tags": ["data"]}
         ]).build(remote=self.hosts)
 
         self.create_filetree("remote_container", [
             {"path": "/etc/nosqlbench", "tags": ["conf"]},
             {"path": "@conf/driver", "tags": ["driver-conf"]},
             {"path": "@conf/workload", "tags": ["workload-conf"]},
-            {"path": "/var/lib/nosqlbench", "tags": ["data"]},
-            {"path": "/var/lib/static-data", "tags": ["static-data"]}
+            {"path": "/var/lib/nosqlbench", "tags": ["data"]}
         ])
 
         self.create_mount_points([
             ("conf", "{{remote_conf_path}}", "{{remote_container_conf_path}}", "bind"),
-            ("data", "{{remote_data_path}}", "{{remote_container_data_path}}", "bind"),
-            ("static-data", "{{remote_static_path}}", "{{remote_container_static_path}}", "bind")
+            ("data", "{{remote_data_path}}", "{{remote_container_data_path}}", "bind")
         ])
 
         extra_vars = {
@@ -182,8 +179,7 @@ class NBDriver(Driver):
             "remote_data_path": str(self.filetree("remote").path("data")),
             "remote_static_path": str(self.filetree("remote").path("static-data")),
             "remote_container_conf_path": str(self.filetree("remote_container").path("conf")),
-            "remote_container_data_path": str(self.filetree("remote_container").path("data")),
-            "remote_container_static_path": str(self.filetree("remote_container").path("static-data"))
+            "remote_container_data_path": str(self.filetree("remote_container").path("data"))
         }
 
         for host in self.hosts:
@@ -227,3 +223,6 @@ class NBDriver(Driver):
             host.extra.update(local_data_path=str(local_data_path))
 
         self.pull(dest="{{local_data_path}}", src="{{remote_data_path}}")
+
+        with en.actions(roles=self.hosts) as actions:
+            actions.shell(cmd="rm -rf {{remote_data_path}}/*")

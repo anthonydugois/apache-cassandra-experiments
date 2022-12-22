@@ -32,7 +32,7 @@ class RateLimitFormatException(Exception):
 
 
 def rate_limit_from_expr(expr: str, csv_input: CSVInput, basepath: Path):
-    if pd.isna(expr):
+    if pd.isna(expr) or expr.startswith("none"):
         return "none", 0.0
     elif expr.startswith("infer="):
         return "infer", Infer(csv_input, basepath).infer_from_expr(expr.split("=")[1])
@@ -196,7 +196,9 @@ def run(site: str,
 
         logging.info(cassandra.tablestats("baselines", "keyvalue"))
 
-        for run_index in range(_repeat):
+        # The very first run (index 0) is a warmup phase.
+        # That's why we have one additional iteration here.
+        for run_index in range(_repeat + 1):
             logging.info(f"Waiting for the system before running run {run_index}...")
 
             time.sleep(RUN_SLEEP_IN_SEC)
@@ -215,7 +217,8 @@ def run(site: str,
             if main_rate_type == "linear":
                 main_rate_limit = (run_index + 1) * main_rate_limit
 
-            main_rate_limit_per_client = main_rate_limit / _clients
+            # Do not rate limit the warmup phase; otherwise, apply the correct limit value
+            main_rate_limit_per_client = 0.0 if run_index <= 0 else main_rate_limit / _clients
 
             rw_total = _read_ratio + _write_ratio
             read_ratio = _read_ratio / rw_total
