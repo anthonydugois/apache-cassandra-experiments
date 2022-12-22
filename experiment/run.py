@@ -22,7 +22,7 @@ LOCAL_FILETREE = FileTree().define([
 ])
 
 DSTAT_SLEEP_IN_SEC = 5
-RUN_SLEEP_IN_SEC = 60
+RUN_SLEEP_IN_SEC = 120
 
 MIN_RATE_LIMIT = 100.0
 
@@ -75,8 +75,6 @@ def run(site: str,
     for _id, params in csv_input.view("input").iterrows():
         _name = params["name"]
         _repeat = params["repeat"]
-        # _rampup_phase = params["rampup_phase"]
-        # _main_phase = params["main_phase"]
         _hosts = params["hosts"]
         _rf = params["rf"]
         _read_ratio = params["read_ratio"]
@@ -104,8 +102,6 @@ def run(site: str,
             {"path": "@root/data", "tags": ["data"]}
         ]).build()
 
-        # execute_rampup = _rampup_phase == "yes"
-        # execute_main = _main_phase == "yes"
         ops_per_client = _ops / _clients
         rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, output_ft.path("raw"))
         main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
@@ -195,7 +191,8 @@ def run(site: str,
         )
 
         # Flush memtable to SSTable
-        cassandra.flush("baselines", "keyvalue")
+        # cassandra.flush("baselines", "keyvalue")
+
         logging.info(cassandra.tablestats("baselines", "keyvalue"))
 
         for run_index in range(_repeat):
@@ -388,7 +385,7 @@ if __name__ == "__main__":
     DEFAULT_ENV_NAME = "debian11-x64-min"
     DEFAULT_WALLTIME = "00:30:00"
     DEFAULT_REPORT_INTERVAL = 10
-    DEFAULT_HISTOGRAM_FILTER = "read.result:10s"
+    DEFAULT_HISTOGRAM_FILTER = "read.cycles.servicetime:10s"
 
     set_config(ansible_stdout="noop")
 

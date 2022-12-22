@@ -51,8 +51,7 @@ blocks:
       rampup-insert:
         type: prepared
         stmt: |
-          INSERT INTO TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) (key, value)
-          VALUES ({seq_key}, {seq_value});
+          INSERT INTO TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) (key, value) VALUES ({seq_key}, {seq_value});
   main-read:
     params:
       ratio: TEMPLATE(readratio,1)
@@ -62,8 +61,7 @@ blocks:
       main-select:
         type: prepared
         stmt: |
-          SELECT key, value FROM TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue)
-          WHERE key = {rw_key};
+          SELECT key, value FROM TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) WHERE key = {rw_key};
   main-write:
     params:
       ratio: TEMPLATE(writeratio,1)
@@ -73,5 +71,4 @@ blocks:
       main-insert:
         type: prepared
         stmt: |
-          INSERT INTO TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) (key, value)
-          VALUES ({rw_key}, {rw_value});
+          INSERT INTO TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) (key, value) VALUES ({rw_key}, {rw_value});
