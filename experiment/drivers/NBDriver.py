@@ -177,7 +177,6 @@ class NBDriver(Driver):
         extra_vars = {
             "remote_conf_path": str(self.filetree("remote").path("conf")),
             "remote_data_path": str(self.filetree("remote").path("data")),
-            "remote_static_path": str(self.filetree("remote").path("static-data")),
             "remote_container_conf_path": str(self.filetree("remote_container").path("conf")),
             "remote_container_data_path": str(self.filetree("remote_container").path("data"))
         }
