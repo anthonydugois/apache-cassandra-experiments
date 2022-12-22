@@ -22,6 +22,7 @@ LOCAL_FILETREE = FileTree().define([
 ])
 
 DSTAT_SLEEP_IN_SEC = 5
+RUN_SLEEP_IN_SEC = 60
 
 MIN_RATE_LIMIT = 100.0
 
@@ -74,8 +75,8 @@ def run(site: str,
     for _id, params in csv_input.view("input").iterrows():
         _name = params["name"]
         _repeat = params["repeat"]
-        _rampup_phase = params["rampup_phase"]
-        _main_phase = params["main_phase"]
+        # _rampup_phase = params["rampup_phase"]
+        # _main_phase = params["main_phase"]
         _hosts = params["hosts"]
         _rf = params["rf"]
         _read_ratio = params["read_ratio"]
@@ -99,11 +100,12 @@ def run(site: str,
 
         set_output_ft = FileTree().define([
             {"path": str(output_ft.path("raw") / _name), "tags": ["root"]},
-            {"path": "@root/conf", "tags": ["conf"]}
+            {"path": "@root/conf", "tags": ["conf"]},
+            {"path": "@root/data", "tags": ["data"]}
         ]).build()
 
-        execute_rampup = _rampup_phase == "yes"
-        execute_main = _main_phase == "yes"
+        # execute_rampup = _rampup_phase == "yes"
+        # execute_main = _main_phase == "yes"
         ops_per_client = _ops / _clients
         rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, output_ft.path("raw"))
         main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
@@ -115,258 +117,260 @@ def run(site: str,
         nb_driver_config_path = LOCAL_FILETREE.path("driver-conf") / _driver_config_file
         nb_workload_config_path = LOCAL_FILETREE.path("workload-conf") / _workload_config_file
 
-        # Save config
-        set_output_ft.copy([
+        # Save config files
+        config_files = [
             LOCAL_FILETREE.path("cassandra-conf") / _config_file,
             LOCAL_FILETREE.path("cassandra-conf") / "jvm-server.options",
             LOCAL_FILETREE.path("cassandra-conf") / "jvm11-server.options",
             LOCAL_FILETREE.path("cassandra-conf") / "metrics-reporter-config.yaml",
             LOCAL_FILETREE.path("driver-conf") / _driver_config_file,
             LOCAL_FILETREE.path("workload-conf") / _workload_config_file
-        ], "conf")
+        ]
+
+        set_output_ft.copy(config_files, "conf")
 
         # Save input parameters
-        csv_input.filter([_id]).to_csv(set_output_ft.path("root") / "input.csv")
+        input_path = set_output_ft.path("root") / "input.csv"
+        csv_input.filter([_id]).to_csv(input_path)
+
+        # Deploy NoSQLBench
+        nb = NBDriver(docker_image="adugois1/nosqlbench:latest")
+
+        nb.deploy(nb_hosts)
+        nb.filetree("remote").copy([nb_driver_config_path], tag="driver-conf", remote=nb_hosts)
+        nb.filetree("remote").copy([nb_workload_config_path], tag="workload-conf", remote=nb_hosts)
+
+        nb_driver_config = nb.filetree("remote_container").path("driver-conf") / nb_driver_config_path.name
+        nb_workload_config = nb.filetree("remote_container").path("workload-conf") / nb_workload_config_path.name
+        nb_data_path = nb.filetree("remote_container").path("data")
+
+        # Deploy and start Cassandra
+        cassandra = CassandraDriver(docker_image=_docker_image)
+
+        cassandra.init(cassandra_hosts, reset=True)
+        cassandra.create_config(LOCAL_FILETREE.path("cassandra-conf") / _config_file)
+        cassandra.create_extra_config([LOCAL_FILETREE.path("cassandra-conf") / "jvm-server.options",
+                                       LOCAL_FILETREE.path("cassandra-conf") / "jvm11-server.options",
+                                       LOCAL_FILETREE.path("cassandra-conf") / "metrics-reporter-config.yaml"])
+
+        cassandra.deploy().start().cleanup()
+
+        logging.info(cassandra.status())
+
+        # Rampup
+        logging.info("Executing rampup phase.")
+
+        nb.command(
+            Scenario.create(
+                RunCommand.create(**{
+                    "alias": "schema",
+                    "driver": "cqld4",
+                    "driverconfig": nb_driver_config,
+                    "workload": nb_workload_config,
+                    "tags": "block:schema",
+                    "threads": 1,
+                    "errors": "warn,retry",
+                    "host": cassandra.get_host_address(0),
+                    "localdc": "datacenter1",
+                    "rf": int(_rf)
+                }),
+                RunCommand.create(**{
+                    "alias": "rampup",
+                    "driver": "cqld4",
+                    "driverconfig": nb_driver_config,
+                    "workload": nb_workload_config,
+                    "tags": "block:rampup",
+                    "threads": "auto",
+                    "cyclerate": rampup_rate_limit,
+                    "cycles": f"1..{int(_keys) + 1}",
+                    "stride": int(_client_stride),
+                    "errors": "warn,retry",
+                    "host": cassandra.get_host_address(0),
+                    "localdc": "datacenter1",
+                    "keysize": int(_key_size),
+                    "valuesizedist": f"'{_value_size_dist}'"
+                })
+            )
+            .as_string()
+        )
+
+        # Flush memtable to SSTable
+        cassandra.flush("baselines", "keyvalue")
+        logging.info(cassandra.tablestats("baselines", "keyvalue"))
 
         for run_index in range(_repeat):
+            logging.info(f"Waiting for the system before running run {run_index}...")
+
+            time.sleep(RUN_SLEEP_IN_SEC)
+
             logging.info(f"Running {_name}#{_id} - run {run_index}.")
 
-            # Deploy NoSQLBench
-            nb = NBDriver(docker_image="adugois1/nosqlbench:latest")
+            run_output_ft = FileTree().define([
+                {"path": str(set_output_ft.path("root") / f"run-{run_index}"), "tags": ["root"]},
+                {"path": "@root/tmp", "tags": ["tmp"]},
+                {"path": "@tmp/dstat", "tags": ["dstat"]},
+                {"path": "@tmp/data", "tags": ["data"]},
+                {"path": "@root/clients", "tags": ["clients"]},
+                {"path": "@root/hosts", "tags": ["hosts"]}
+            ]).build()
 
-            nb.deploy(nb_hosts)
-            nb.filetree("remote").copy([nb_driver_config_path], tag="driver-conf", remote=nb_hosts)
-            nb.filetree("remote").copy([nb_workload_config_path], tag="workload-conf", remote=nb_hosts)
+            rw_total = _read_ratio + _write_ratio
+            read_ratio = _read_ratio / rw_total
+            write_ratio = _write_ratio / rw_total
 
-            nb_driver_config = nb.filetree("remote_container").path("driver-conf") / nb_driver_config_path.name
-            nb_workload_config = nb.filetree("remote_container").path("workload-conf") / nb_workload_config_path.name
-            nb_data_path = nb.filetree("remote_container").path("data")
+            read_ops_per_client = int(read_ratio * ops_per_client)
+            write_ops_per_client = int(write_ratio * ops_per_client)
 
-            # Deploy and start Cassandra
-            cassandra = CassandraDriver(docker_image=_docker_image)
+            read_threads = int(read_ratio * _client_threads)
+            write_threads = int(write_ratio * _client_threads)
 
-            cassandra.init(cassandra_hosts, reset=execute_rampup)
-            cassandra.create_config(LOCAL_FILETREE.path("cassandra-conf") / _config_file)
-            cassandra.create_extra_config([LOCAL_FILETREE.path("cassandra-conf") / "jvm-server.options",
-                                           LOCAL_FILETREE.path("cassandra-conf") / "jvm11-server.options",
-                                           LOCAL_FILETREE.path("cassandra-conf") / "metrics-reporter-config.yaml"])
-            cassandra.deploy()
+            read_params = {
+                "alias": "read",
+                "driver": "cqld4",
+                "driverconfig": nb_driver_config,
+                "workload": nb_workload_config,
+                "tags": "block:main-read",
+                "threads": read_threads,
+                "stride": int(_client_stride),
+                "errors": "warn,timer",
+                "host": cassandra.get_host_address(0),
+                "localdc": "datacenter1",
+                "keydist": f"'{_key_dist}'",
+                "keysize": int(_key_size),
+                "valuesizedist": f"'{_value_size_dist}'"
+            }
 
-            cassandra.start()
-            cassandra.cleanup()
+            write_params = {
+                "alias": "write",
+                "driver": "cqld4",
+                "driverconfig": nb_driver_config,
+                "workload": nb_workload_config,
+                "tags": "block:main-write",
+                "threads": write_threads,
+                "stride": int(_client_stride),
+                "errors": "warn,timer",
+                "host": cassandra.get_host_address(0),
+                "localdc": "datacenter1",
+                "keydist": f"'{_key_dist}'",
+                "keysize": int(_key_size),
+                "valuesizedist": f"'{_value_size_dist}'"
+            }
 
-            logging.info(cassandra.status())
+            if main_rate_limit_per_client >= MIN_RATE_LIMIT:
+                estimated_duration = read_ops_per_client / main_rate_limit_per_client
+                read_params["cyclerate"] = main_rate_limit_per_client
+                write_params["cyclerate"] = write_ops_per_client / estimated_duration
 
-            if execute_rampup:
-                logging.info("Executing rampup phase.")
+                logging.info(f"Estimated duration: {estimated_duration} seconds.")
 
-                nb.command(
-                    Scenario.create(
-                        RunCommand.create(**{
-                            "alias": "schema",
-                            "driver": "cqld4",
-                            "driverconfig": nb_driver_config,
-                            "workload": nb_workload_config,
-                            "tags": "block:schema",
-                            "threads": 1,
-                            "errors": "warn,retry",
-                            "host": cassandra.get_host_address(0),
-                            "localdc": "datacenter1",
-                            "rf": int(_rf)
-                        }),
-                        RunCommand.create(**{
-                            "alias": "rampup",
-                            "driver": "cqld4",
-                            "driverconfig": nb_driver_config,
-                            "workload": nb_workload_config,
-                            "tags": "block:rampup",
-                            "threads": "auto",
-                            "cyclerate": rampup_rate_limit,
-                            "cycles": f"1..{int(_keys) + 1}",
-                            "stride": int(_client_stride),
-                            "errors": "warn,retry",
-                            "host": cassandra.get_host_address(0),
-                            "localdc": "datacenter1",
-                            "keysize": int(_key_size),
-                            "valuesizedist": f"'{_value_size_dist}'"
-                        })
-                    )
+            main_cmds = []
+            for index, host in enumerate(nb.hosts):
+                read_start = int(index * read_ops_per_client)
+                read_end = int(read_start + read_ops_per_client)
+                read_cycles = f"{read_start}..{read_end}"
+
+                write_start = int(index * write_ops_per_client)
+                write_end = int(write_start + write_ops_per_client)
+                write_cycles = f"{write_start}..{write_end}"
+
+                if _write_ratio > 0:
+                    commands = [
+                        StartCommand.create(**read_params, cycles=read_cycles),
+                        StartCommand.create(**write_params, cycles=write_cycles),
+                        AwaitCommand.create("read"),
+                        StopCommand.create("write")
+                    ]
+                else:
+                    commands = [
+                        StartCommand.create(**read_params, cycles=read_cycles),
+                        AwaitCommand.create("read")
+                    ]
+
+                main_cmds.append((
+                    host,
+                    Scenario.create(*commands)
+                    .logs_dir(nb_data_path)
+                    .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}")
+                    .log_histostats(nb_data_path / f"histostats.csv:{histogram_filter}")
+                    .report_summary_to(nb_data_path / "summary.txt")
+                    .report_csv_to(nb_data_path / "csv")
+                    .report_interval(report_interval)
                     .as_string()
-                )
+                ))
 
-                # Flush memtable to SSTable
-                cassandra.flush("baselines", "keyvalue")
+            _tmp_dstat_path = run_output_ft.path("dstat")
+            _tmp_data_path = run_output_ft.path("data")
 
-            logging.info(cassandra.tablestats("baselines", "keyvalue"))
+            with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
+                # Make sure Dstat is running when we start experiment
+                time.sleep(DSTAT_SLEEP_IN_SEC)
 
-            if execute_main:
-                logging.info("Executing main phase.")
+                # Launch main commands
+                nb.commands(main_cmds)
 
-                run_output_ft = FileTree().define([
-                    {"path": str(set_output_ft.path("root") / f"run-{run_index}"), "tags": ["root"]},
-                    {"path": "@root/tmp", "tags": ["tmp"]},
-                    {"path": "@tmp/dstat", "tags": ["dstat"]},
-                    {"path": "@tmp/data", "tags": ["data"]},
-                    {"path": "@tmp/log", "tags": ["log"]},
-                    {"path": "@root/clients", "tags": ["clients"]},
-                    {"path": "@root/hosts", "tags": ["hosts"]}
-                ]).build()
+                # Let the system recover before killing Dstat
+                time.sleep(DSTAT_SLEEP_IN_SEC)
 
-                rw_total = _read_ratio + _write_ratio
-                read_ratio = _read_ratio / rw_total
-                write_ratio = _write_ratio / rw_total
+            # Get NoSQLBench results
+            nb.pull_results(_tmp_data_path)
 
-                read_ops_per_client = int(read_ratio * ops_per_client)
-                write_ops_per_client = int(write_ratio * ops_per_client)
+            # Get Cassandra metrics
+            # cassandra.pull_metrics(_tmp_log_path)
 
-                read_threads = int(read_ratio * _client_threads)
-                write_threads = int(write_ratio * _client_threads)
+            # Save results
+            _client_path = run_output_ft.path("clients")
+            _host_path = run_output_ft.path("hosts")
 
-                read_params = {
-                    "alias": "read",
-                    "driver": "cqld4",
-                    "driverconfig": nb_driver_config,
-                    "workload": nb_workload_config,
-                    "tags": "block:main-read",
-                    "threads": read_threads,
-                    "stride": int(_client_stride),
-                    "errors": "warn,timer",
-                    "host": cassandra.get_host_address(0),
-                    "localdc": "datacenter1",
-                    "keydist": f"'{_key_dist}'",
-                    "keysize": int(_key_size),
-                    "valuesizedist": f"'{_value_size_dist}'"
-                }
+            for client in nb.hosts:
+                _dstat_dir = _tmp_dstat_path / client.address
+                if _dstat_dir.exists():
+                    _client_dstat_path = _client_path / client.address / "dstat"
+                    _client_dstat_path.mkdir(parents=True, exist_ok=True)
 
-                write_params = {
-                    "alias": "write",
-                    "driver": "cqld4",
-                    "driverconfig": nb_driver_config,
-                    "workload": nb_workload_config,
-                    "tags": "block:main-write",
-                    "threads": write_threads,
-                    "stride": int(_client_stride),
-                    "errors": "warn,timer",
-                    "host": cassandra.get_host_address(0),
-                    "localdc": "datacenter1",
-                    "keydist": f"'{_key_dist}'",
-                    "keysize": int(_key_size),
-                    "valuesizedist": f"'{_value_size_dist}'"
-                }
+                    for _dstat_file in _dstat_dir.glob("**/*-dstat.csv"):
+                        shutil.copy2(_dstat_file, _client_dstat_path / _dstat_file.name)
+                else:
+                    logging.warning(f"{_dstat_dir} does not exist.")
 
-                if main_rate_limit_per_client >= MIN_RATE_LIMIT:
-                    estimated_duration = read_ops_per_client / main_rate_limit_per_client
-                    read_params["cyclerate"] = main_rate_limit_per_client
-                    write_params["cyclerate"] = write_ops_per_client / estimated_duration
+                _data_dir = _tmp_data_path / client.address / "data"
+                if _data_dir.exists():
+                    shutil.copytree(_data_dir, _client_path / client.address / "data")
+                else:
+                    logging.warning(f"{_data_dir} does not exist.")
 
-                    logging.info(f"Estimated duration: {estimated_duration} seconds.")
+            for host in cassandra.hosts:
+                _dstat_dir = _tmp_dstat_path / host.address
+                if _dstat_dir.exists():
+                    _host_dstat_path = _host_path / host.address / "dstat"
+                    _host_dstat_path.mkdir(parents=True, exist_ok=True)
 
-                main_cmds = []
-                for index, host in enumerate(nb.hosts):
-                    read_start = int(index * read_ops_per_client)
-                    read_end = int(read_start + read_ops_per_client)
-                    read_cycles = f"{read_start}..{read_end}"
+                    for _dstat_file in _dstat_dir.glob("**/*-dstat.csv"):
+                        shutil.copy2(_dstat_file, _host_dstat_path / _dstat_file.name)
+                else:
+                    logging.warning(f"{_dstat_dir} does not exist.")
 
-                    write_start = int(index * write_ops_per_client)
-                    write_end = int(write_start + write_ops_per_client)
-                    write_cycles = f"{write_start}..{write_end}"
+                # _metrics_dir = _tmp_log_path / host.address / "metrics"
+                # if _metrics_dir.exists():
+                #     shutil.copytree(_metrics_dir, _host_path / host.address / "metrics")
+                # else:
+                #     logging.warning(f"{_metrics_dir} does not exist.")
+                #
+                # _log_dir = _tmp_log_path / host.address / "log"
+                # if _log_dir.exists():
+                #     shutil.copytree(_log_dir, _host_path / host.address / "log")
+                # else:
+                #     logging.warning(f"{_log_dir} does not exist.")
 
-                    if _write_ratio > 0:
-                        commands = [
-                            StartCommand.create(**read_params, cycles=read_cycles),
-                            StartCommand.create(**write_params, cycles=write_cycles),
-                            AwaitCommand.create("read"),
-                            StopCommand.create("write")
-                        ]
-                    else:
-                        commands = [
-                            StartCommand.create(**read_params, cycles=read_cycles),
-                            AwaitCommand.create("read")
-                        ]
+            run_output_ft.remove("tmp")
 
-                    main_cmds.append((
-                        host,
-                        Scenario.create(*commands)
-                        .logs_dir(nb_data_path)
-                        .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}")
-                        .log_histostats(nb_data_path / f"histostats.csv:{histogram_filter}")
-                        .report_summary_to(nb_data_path / "summary.txt")
-                        .report_csv_to(nb_data_path / "csv")
-                        .report_interval(report_interval)
-                        .as_string()
-                    ))
+        # Pull Cassandra logs
+        cassandra.pull_log(set_output_ft.path("data"))
 
-                _tmp_dstat_path = run_output_ft.path("dstat")
-                _tmp_data_path = run_output_ft.path("data")
-                _tmp_log_path = run_output_ft.path("log")
+        # Shutdown and destroy
+        logging.info("Destroying instances.")
 
-                with en.Dstat(nodes=[*cassandra.hosts, *nb.hosts], options=dstat_options, backup_dir=_tmp_dstat_path):
-                    # Make sure Dstat is running when we start experiment
-                    time.sleep(DSTAT_SLEEP_IN_SEC)
-                    # Launch main commands
-                    nb.commands(main_cmds)
-                    # Let the system recover before killing Dstat
-                    time.sleep(DSTAT_SLEEP_IN_SEC)
-
-                # Properly shutdown Cassandra before pulling data
-                cassandra.shutdown()
-
-                # Get NoSQLBench results
-                nb.pull_results(_tmp_data_path)
-
-                # Get Cassandra metrics
-                cassandra.pull_results(_tmp_log_path)
-
-                # Save results
-                _client_path = run_output_ft.path("clients")
-                _host_path = run_output_ft.path("hosts")
-
-                for client in nb.hosts:
-                    _dstat_dir = _tmp_dstat_path / client.address
-                    if _dstat_dir.exists():
-                        _client_dstat_path = _client_path / client.address / "dstat"
-                        _client_dstat_path.mkdir(parents=True, exist_ok=True)
-
-                        for _dstat_file in _dstat_dir.glob("**/*-dstat.csv"):
-                            shutil.copy2(_dstat_file, _client_dstat_path / _dstat_file.name)
-                    else:
-                        logging.warning(f"{_dstat_dir} does not exist.")
-
-                    _data_dir = _tmp_data_path / client.address / "data"
-                    if _data_dir.exists():
-                        shutil.copytree(_data_dir, _client_path / client.address / "data")
-                    else:
-                        logging.warning(f"{_data_dir} does not exist.")
-
-                for host in cassandra.hosts:
-                    _dstat_dir = _tmp_dstat_path / host.address
-                    if _dstat_dir.exists():
-                        _host_dstat_path = _host_path / host.address / "dstat"
-                        _host_dstat_path.mkdir(parents=True, exist_ok=True)
-
-                        for _dstat_file in _dstat_dir.glob("**/*-dstat.csv"):
-                            shutil.copy2(_dstat_file, _host_dstat_path / _dstat_file.name)
-                    else:
-                        logging.warning(f"{_dstat_dir} does not exist.")
-
-                    _metrics_dir = _tmp_log_path / host.address / "metrics"
-                    if _metrics_dir.exists():
-                        shutil.copytree(_metrics_dir, _host_path / host.address / "metrics")
-                    else:
-                        logging.warning(f"{_metrics_dir} does not exist.")
-
-                    _log_dir = _tmp_log_path / host.address / "log"
-                    if _log_dir.exists():
-                        shutil.copytree(_log_dir, _host_path / host.address / "log")
-                    else:
-                        logging.warning(f"{_log_dir} does not exist.")
-
-                run_output_ft.remove("tmp")
-
-            logging.info("Destroying instances.")
-
-            nb.destroy()
-            cassandra.destroy()
+        nb.destroy()
+        cassandra.shutdown().destroy()
 
     # Release resources
     resources.release()

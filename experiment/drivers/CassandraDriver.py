@@ -97,6 +97,8 @@ class CassandraDriver(Driver):
         if reset:
             self.reset_data()
 
+        return self
+
     def reset_data(self):
         with en.actions(roles=self.hosts) as actions:
             # Remove existing data
@@ -116,12 +118,16 @@ class CassandraDriver(Driver):
                            "rpc_address": host.address
                        })
 
+        return self
+
     def create_extra_config(self, template_paths: list[Union[str, Path]]):
         for host in self.hosts:
             local_conf_path = host.extra["local_conf_path"]
 
             for template_path in template_paths:
                 shutil.copy(template_path, local_conf_path)
+
+        return self
 
     def deploy(self):
         """
@@ -203,6 +209,8 @@ class CassandraDriver(Driver):
         logging.info(f"Cassandra has been deployed "
                      f"(hosts={self.host_addresses()}, seeds={self.host_addresses(hosts=self.seeds)}).")
 
+        return self
+
     def start(self):
         """
         Run a Cassandra cluster.
@@ -227,6 +235,8 @@ class CassandraDriver(Driver):
             logging.info(f"[{host.address}] Cassandra is up and running "
                          f"({index + 1}/{self.host_count}).")
 
+        return self
+
     def shutdown(self):
         """
         Shutdown a Cassandra cluster.
@@ -240,15 +250,18 @@ class CassandraDriver(Driver):
         At the end, the cluster is ready to be destroyed.
         """
 
-        for index, host in enumerate(reversed(self.hosts)):
-            self.nodetool("disablebinary", [host])
-            self.nodetool("disablegossip", [host])
-            self.nodetool("drain", [host])
+        # for index, host in enumerate(reversed(self.hosts)):
+        #     # self.nodetool("disablebinary", [host])
+        #     # self.nodetool("disablegossip", [host])
+        #     # self.nodetool("drain", [host])
+        #     self.nodetool(f"assassinate {host.address}")
+        #
+        #     time.sleep(CassandraDriver.DELAY_IN_SECONDS)
+        #
+        #     logging.info(f"[{host.address}] Cassandra has been shutdown "
+        #                  f"({index + 1}/{self.host_count}).")
 
-            time.sleep(CassandraDriver.DELAY_IN_SECONDS)
-
-            logging.info(f"[{host.address}] Cassandra has been shutdown "
-                         f"({index + 1}/{self.host_count}).")
+        return self
 
     def destroy(self):
         """
@@ -257,8 +270,6 @@ class CassandraDriver(Driver):
         1. Stop and remove the Cassandra Docker container.
         2. Remove Cassandra configuration files, logs, caches and metrics.
         3. Drop OS caches.
-
-        Note that this does not remove data.
         """
 
         with en.actions(roles=self.hosts) as actions:
@@ -284,8 +295,12 @@ class CassandraDriver(Driver):
             # Drop OS caches
             actions.shell(cmd="echo 3 > /proc/sys/vm/drop_caches")
 
+        return self
+
     def cleanup(self):
         shutil.rmtree(self.local_global_root_path)
+
+        return self
 
     def nodetool(self, command: str, hosts: Optional[list[en.Host]] = None):
         """
@@ -316,7 +331,16 @@ class CassandraDriver(Driver):
         results = self.nodetool(f"tablestats {keyspace}.{table}", [self.hosts[0]])
         return results[0].payload["stdout"]
 
-    def pull_results(self, basepath: Path):
+    def pull_log(self, basepath: Path):
+        for host in self.hosts:
+            local_path = basepath / host.address
+            local_path.mkdir(parents=True, exist_ok=True)
+
+            host.extra.update(local_path=str(local_path))
+
+        self.pull(dest="{{local_path}}", src="{{remote_log_path}}")
+
+    def pull_metrics(self, basepath: Path):
         for host in self.hosts:
             local_path = basepath / host.address
             local_path.mkdir(parents=True, exist_ok=True)
@@ -324,4 +348,3 @@ class CassandraDriver(Driver):
             host.extra.update(local_path=str(local_path))
 
         self.pull(dest="{{local_path}}", src="{{remote_metrics_path}}")
-        self.pull(dest="{{local_path}}", src="{{remote_log_path}}")
