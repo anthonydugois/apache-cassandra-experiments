@@ -85,6 +85,7 @@ def run(site: str,
         _ops = params["ops"]
         _rampup_rate_limit = params["rampup_rate_limit"]
         _main_rate_limit = params["main_rate_limit"]
+        _warmup_rate_limit = params["warmup_rate_limit"]
         _key_dist = params["key_dist"]
         _key_size = params["key_size"]
         _value_size_dist = params["value_size_dist"]
@@ -107,6 +108,7 @@ def run(site: str,
         ops_per_client = _ops / _clients
         rampup_rate_type, rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, output_ft.path("raw"))
         main_rate_type, main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
+        warmup_rate_type, warmup_rate_limit = rate_limit_from_expr(_warmup_rate_limit, csv_input, output_ft.path("raw"))
 
         cassandra_hosts = list(resources.roles["cassandra"][:_hosts])
         nb_hosts = list(resources.roles["clients"][:_clients])
@@ -215,10 +217,8 @@ def run(site: str,
             ]).build()
 
             if run_index <= 0:
-                # Do not rate limit the warmup phase
-                main_rate_limit_per_client = 0.0
+                main_rate_limit_per_client = warmup_rate_limit / _clients
             else:
-                # Otherwise, apply the correct limit value
                 if main_rate_type == "linear":
                     main_rate_limit_per_client = (run_index * main_rate_limit) / _clients
                 else:
