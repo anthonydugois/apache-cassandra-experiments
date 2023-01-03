@@ -48,6 +48,9 @@ class CassandraDriver(Driver):
     def get_host_address(self, index: int):
         return self.hosts[index].address
 
+    def get_host_addresses(self, hosts=None, port=0):
+        return ",".join(self.host_addresses(hosts=hosts, port=port))
+
     def build_file_tree(self, conf_dir="conf"):
         for host in self.hosts:
             local_root_path = self.local_global_root_path / host.address
