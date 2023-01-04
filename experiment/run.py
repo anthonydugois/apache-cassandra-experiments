@@ -83,6 +83,7 @@ def run(site: str,
         _write_ratio = params["write_ratio"]
         _keys = params["keys"]
         _ops = params["ops"]
+        _duration = params["duration"]
         _rampup_rate_limit = params["rampup_rate_limit"]
         _main_rate_limit = params["main_rate_limit"]
         _warmup_rate_limit = params["warmup_rate_limit"]
@@ -97,6 +98,14 @@ def run(site: str,
         _client_threads = params["client_threads"]
         _client_stride = params["client_stride"]
 
+        if pd.isna(_ops) and pd.isna(_duration):
+            logging.warning("Ops or duration must be set.")
+            continue
+
+        if not pd.isna(_ops) and not pd.isna(_duration):
+            logging.warning("Ops and duration cannot be set both at the same time.")
+            continue
+
         logging.info(f"Preparing {_name}#{_id}...")
 
         set_output_ft = FileTree().define([
@@ -105,7 +114,6 @@ def run(site: str,
             {"path": "@root/data", "tags": ["data"]}
         ]).build()
 
-        ops_per_client = _ops / _clients
         rampup_rate_type, rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, output_ft.path("raw"))
         main_rate_type, main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
         warmup_rate_type, warmup_rate_limit = rate_limit_from_expr(_warmup_rate_limit, csv_input, output_ft.path("raw"))
@@ -194,7 +202,7 @@ def run(site: str,
         )
 
         # Flush memtable to SSTable
-        # cassandra.flush("baselines", "keyvalue")
+        cassandra.flush("baselines", "keyvalue")
 
         logging.info(cassandra.tablestats("baselines", "keyvalue"))
 
@@ -223,6 +231,11 @@ def run(site: str,
                     main_rate_limit_per_client = (run_index * main_rate_limit) / _clients
                 else:
                     main_rate_limit_per_client = main_rate_limit / _clients
+
+            if not pd.isna(_ops):
+                ops_per_client = _ops / _clients
+            else:
+                ops_per_client = _duration * main_rate_limit_per_client
 
             rw_total = _read_ratio + _write_ratio
             read_ratio = _read_ratio / rw_total
