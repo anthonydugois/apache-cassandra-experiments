@@ -284,7 +284,10 @@ def run(site: str,
                 read_params["cyclerate"] = main_rate_limit_per_client
                 write_params["cyclerate"] = write_ops_per_client / estimated_duration
 
-                logging.info(f"Estimated duration: {estimated_duration} seconds.")
+                logging.info(f"Number of clients: {_clients}.")
+                logging.info(f"Rate/client: {main_rate_limit_per_client} ops/second.")
+                logging.info(f"Ops/client: {read_ops_per_client} ops.")
+                logging.info(f"Total duration: {estimated_duration} seconds.")
 
             main_cmds = []
             for index, host in enumerate(nb.hosts):
