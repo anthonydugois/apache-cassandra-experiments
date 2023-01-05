@@ -15,22 +15,22 @@ HIST_MAX = 1_000_000_000_000
 HIST_DIGITS = 3
 
 
-def summarize_histogram(hist: HdrHistogram, percentiles=None):
+def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, percentiles=None):
     if percentiles is None:
         percentiles = range(1, 100)
 
-    row = {
-        "count": hist.get_total_count(),
-        "min": hist.get_min_value(),
-        "max": hist.get_max_value(),
-        "mean": hist.get_mean_value(),
-        "sd": hist.get_stddev()
-    }
+    rows = [
+        {"id": _id, "run": run_index, "stat_name": "count", "stat_value": hist.get_total_count()},
+        {"id": _id, "run": run_index, "stat_name": "min", "stat_value": hist.get_min_value()},
+        {"id": _id, "run": run_index, "stat_name": "max", "stat_value": hist.get_max_value()},
+        {"id": _id, "run": run_index, "stat_name": "mean", "stat_value": hist.get_mean_value()},
+        {"id": _id, "run": run_index, "stat_name": "sd", "stat_value": hist.get_stddev()},
+    ]
 
     for percentile, value in hist.get_percentile_to_value_dict(percentiles).items():
-        row[f"p{percentile}"] = value
+        rows.append({"id": _id, "run": run_index, "stat_name": f"p{percentile}", "stat_value": value})
 
-    return row
+    return pd.DataFrame(rows)
 
 
 def tidy(data_path: str,
@@ -49,9 +49,7 @@ def tidy(data_path: str,
         "dstat_clients": [],
         "dstat_hosts": [],
         "latency": [],
-        "latency_per_run": [],
-        "timeseries": [],
-        # "metrics": []
+        "timeseries": []
     }
 
     for _id, params in parameters.iterrows():
@@ -64,8 +62,6 @@ def tidy(data_path: str,
 
         logging.info(f"[{_name}] Processing {_set_path}.")
         logging.info(f"[{_name}] Input parameters:\n\n{params}\n\n")
-
-        full_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
 
         for run_index in range(_repeat):
             _run_path = _set_path / f"run-{run_index}"
@@ -139,33 +135,6 @@ def tidy(data_path: str,
 
                     dfs["timeseries"].append(ts_df)
 
-            # Process Metrics results
-            # for _path in _host_path.glob("*.grid5000.fr"):
-            #     _metric_path = _path / "metrics"
-            #     _metric_files = list(_metric_path.glob("**/org.apache.cassandra.metrics.*.csv"))
-            #     if len(_metric_files) <= 0:
-            #         logging.warning(f"[{_name}/run-{run_index}] No Metrics file in {_metric_path}.")
-            #         continue
-            #
-            #     for _metric_file in _metric_files:
-            #         metric_df = pd.read_csv(_metric_file, index_col=False)
-            #
-            #         metric_ms = np.concatenate(metric_df
-            #                                    .groupby(["t"])
-            #                                    .count()
-            #                                    .loc[:, "value"]
-            #                                    .apply(lambda value: np.arange(0, 1, 1 / value))
-            #                                    .values)
-            #         metric_df["t"] = metric_df["t"] + metric_ms
-            #
-            #         metric_df.rename(columns={"t": "epoch"}, inplace=True)
-            #         metric_df["id"] = _id
-            #         metric_df["run"] = run_index
-            #         metric_df["host_address"] = _path.name
-            #         metric_df["name"] = _metric_file.stem
-            #
-            #         dfs["metrics"].append(metric_df)
-
             # Process Latency histogram
             cur_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
             for _path in _client_path.glob("*.grid5000.fr"):
@@ -204,23 +173,7 @@ def tidy(data_path: str,
                 if hist.get_total_count() > 0:
                     cur_hist.add(hist)
 
-            if cur_hist.get_total_count() > 0:
-                full_hist.add(cur_hist)
-
-            lpr_row = summarize_histogram(cur_hist)
-            lpr_row["id"] = _id
-            lpr_row["run"] = run_index
-
-            lpr_df = pd.DataFrame(lpr_row, index=[0])
-
-            dfs["latency_per_run"].append(lpr_df)
-
-        lat_row = summarize_histogram(full_hist)
-        lat_row["id"] = _id
-
-        lat_df = pd.DataFrame(lat_row, index=[0])
-
-        dfs["latency"].append(lat_df)
+            dfs["latency"].append(summarize_histogram(cur_hist, _id, run_index))
 
     # Save CSV files
     parameters.to_csv(_tidy_path / "input.csv")

@@ -46,7 +46,7 @@ blocks:
   rampup:
     params:
       cl: LOCAL_ONE
-      timeout: 10.0
+      timeout: 30.0
     ops:
       rampup-insert:
         type: prepared
@@ -55,8 +55,8 @@ blocks:
   main-read:
     params:
       ratio: TEMPLATE(readratio,1)
-      cl: LOCAL_ONE
-      timeout: 10.0
+      cl: LOCAL_QUORUM
+      timeout: 2.0
     ops:
       main-select:
         type: prepared
@@ -65,8 +65,8 @@ blocks:
   main-write:
     params:
       ratio: TEMPLATE(writeratio,1)
-      cl: LOCAL_ONE
-      timeout: 10.0
+      cl: LOCAL_QUORUM
+      timeout: 2.0
     ops:
       main-insert:
         type: prepared
