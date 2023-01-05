@@ -63,7 +63,7 @@ def tidy(data_path: str,
         logging.info(f"[{_name}] Processing {_set_path}.")
         logging.info(f"[{_name}] Input parameters:\n\n{params}\n\n")
 
-        for run_index in range(_repeat):
+        for run_index in range(_repeat + 1):
             _run_path = _set_path / f"run-{run_index}"
             _client_path = _run_path / "clients"
             _host_path = _run_path / "hosts"

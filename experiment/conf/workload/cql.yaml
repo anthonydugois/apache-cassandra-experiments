@@ -55,7 +55,7 @@ blocks:
   main-read:
     params:
       ratio: TEMPLATE(readratio,1)
-      cl: LOCAL_QUORUM
+      cl: LOCAL_ONE
       timeout: 2.0
     ops:
       main-select:
@@ -65,7 +65,7 @@ blocks:
   main-write:
     params:
       ratio: TEMPLATE(writeratio,1)
-      cl: LOCAL_QUORUM
+      cl: LOCAL_ONE
       timeout: 2.0
     ops:
       main-insert:
