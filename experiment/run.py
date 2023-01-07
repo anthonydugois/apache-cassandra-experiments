@@ -166,6 +166,9 @@ def run(site: str,
 
         # Rampup
         logging.info("Executing rampup phase.")
+        logging.info(f"Rate: {rampup_rate_limit} ops/second.")
+        logging.info(f"Ops: {_keys} ops.")
+        logging.info(f"Total duration: {_keys / rampup_rate_limit} seconds.")
 
         nb.command(
             Scenario.create(
