@@ -168,7 +168,6 @@ def tidy(data_path: str,
 
                         if hist_count > 0:
                             hist.add(decoded_hist)
-                            logging.info(f"Added histogram.")
 
                 if hist.get_total_count() > 0:
                     cur_hist.add(hist)
