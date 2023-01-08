@@ -22,7 +22,8 @@ LOCAL_FILETREE = FileTree().define([
 ])
 
 DSTAT_SLEEP_IN_SEC = 5
-RUN_SLEEP_IN_SEC = 120
+RUN_SLEEP_IN_SEC = 120  # 2 minutes
+FLUSH_SLEEP_IN_SEC = 1800  # 30 minutes
 
 MIN_RATE_LIMIT = 100.0
 
@@ -204,8 +205,14 @@ def run(site: str,
             .as_string()
         )
 
+        logging.info("Rampup done. Flushing memtable...")
+
         # Flush memtable to SSTable
         cassandra.flush("baselines", "keyvalue")
+
+        logging.info("Waiting for compaction...")
+
+        time.sleep(FLUSH_SLEEP_IN_SEC)
 
         logging.info(cassandra.tablestats("baselines", "keyvalue"))
 
