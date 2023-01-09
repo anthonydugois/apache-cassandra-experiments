@@ -441,7 +441,7 @@ if __name__ == "__main__":
     parser.add_argument("--job-name", type=str, default=DEFAULT_JOB_NAME)
     parser.add_argument("--site", type=str, default=DEFAULT_SITE)
     parser.add_argument("--cluster", type=str, default=DEFAULT_CLUSTER)
-    parser.add_argument("--start-index", type=str, default=DEFAULT_START_INDEX)
+    parser.add_argument("--start-index", type=int, default=DEFAULT_START_INDEX)
     parser.add_argument("--env-name", type=str, default=DEFAULT_ENV_NAME)
     parser.add_argument("--reservation", type=str, default=None)
     parser.add_argument("--walltime", type=str, default=DEFAULT_WALLTIME)
