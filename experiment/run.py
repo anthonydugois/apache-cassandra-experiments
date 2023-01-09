@@ -40,13 +40,15 @@ def get_rate_limiter(expr: str, csv_input: CSVInput, basepath: Path):
 
         return "infer", lambda run_index: Infer(csv_input, basepath).infer_from_expr(expr_args)
     elif expr.startswith("linear="):
-        expr_args = expr.split("=")[1]
+        expr_args = expr.split("=")[1].split(",")
+        start_rate, coeff_rate = float(expr_args[0]), float(expr_args[1])
 
-        return "linear", lambda run_index: run_index * float(expr_args)
+        return "linear", lambda run_index: start_rate + (run_index - 1) * coeff_rate
     elif expr.startswith("fixed="):
         expr_args = expr.split("=")[1]
+        fixed_rate = float(expr_args)
 
-        return "fixed", lambda run_index: float(expr_args)
+        return "fixed", lambda run_index: fixed_rate
     else:
         raise RateLimitFormatException
 
