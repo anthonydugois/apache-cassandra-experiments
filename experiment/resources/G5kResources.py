@@ -42,6 +42,24 @@ class G5kResources:
         self.networks: Optional[en.Networks] = None
         self.role_counts: dict[str, int] = {}
 
+    def add_fixed_machines(self, roles: list[str], node_count: int, start_index: int = 1,
+                           cluster: Optional[str] = None):
+        if len(roles) <= 0:
+            raise NoRoleException
+        if node_count <= 0:
+            raise NodeCountException
+        if cluster is None:
+            cluster = self.cluster
+
+        servers = [f"{cluster}-{start_index + index}.{self.site}.grid5000.fr"
+                   for index in range(node_count)]
+
+        logging.info(f"Adding {servers} to {roles}.")
+
+        self.conf = self.conf.add_machine(roles=roles, servers=servers, primary_network=self.net_conf)
+
+        self._update_role_count(roles, node_count)
+
     def add_machines(self, roles: list[str], node_count: int, cluster: Optional[str] = None):
         if len(roles) <= 0:
             raise NoRoleException
@@ -54,6 +72,9 @@ class G5kResources:
 
         self.conf = self.conf.add_machine(roles=roles, cluster=cluster, nodes=node_count, primary_network=self.net_conf)
 
+        self._update_role_count(roles, node_count)
+
+    def _update_role_count(self, roles: list[str], node_count: int):
         for role in roles:
             if role in self.role_counts:
                 self.role_counts[role] += node_count

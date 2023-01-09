@@ -32,21 +32,28 @@ class RateLimitFormatException(Exception):
     pass
 
 
-def rate_limit_from_expr(expr: str, csv_input: CSVInput, basepath: Path):
+def get_rate_limiter(expr: str, csv_input: CSVInput, basepath: Path):
     if pd.isna(expr) or expr.startswith("none"):
-        return "none", 0.0
+        return "none", lambda run_index: 0.0
     elif expr.startswith("infer="):
-        return "infer", Infer(csv_input, basepath).infer_from_expr(expr.split("=")[1])
+        expr_args = expr.split("=")[1]
+
+        return "infer", lambda run_index: Infer(csv_input, basepath).infer_from_expr(expr_args)
     elif expr.startswith("linear="):
-        return "linear", float(expr.split("=")[1])
+        expr_args = expr.split("=")[1]
+
+        return "linear", lambda run_index: run_index * float(expr_args)
     elif expr.startswith("fixed="):
-        return "fixed", float(expr.split("=")[1])
+        expr_args = expr.split("=")[1]
+
+        return "fixed", lambda run_index: float(expr_args)
     else:
         raise RateLimitFormatException
 
 
 def run(site: str,
         cluster: str,
+        start_index: int,
         settings: dict,
         csv_input: CSVInput,
         output_path: Path,
@@ -63,14 +70,23 @@ def run(site: str,
 
     # Warning: the two following values must be wrapped in an int, as pandas returns an np.int64,
     # which is not usable in the resource driver.
+
     max_hosts = int(csv_input.view(key="input", columns="hosts").max())
     max_clients = int(csv_input.view(key="input", columns="clients").max())
 
-    # Acquire G5k resources
+    # Acquire G5k resources.
+    # We define two types of resources:
+    # - Cassandra nodes, which constitute the system under test;
+    # - Cassandra clients, which constitute the benchmarking system.
+    # We make sure that we always use the same machines for Cassandra nodes and clients to ensure that the exact same
+    # hardware configuration is used across repeated experiments.
+
     resources = G5kResources(site=site, cluster=cluster, settings=settings)
 
-    resources.add_machines(["nodes", "cassandra"], max_hosts)
-    resources.add_machines(["nodes", "clients"], max_clients)
+    resources.add_fixed_machines(roles=["nodes", "cassandra"], node_count=max_hosts,
+                                 start_index=start_index)
+    resources.add_fixed_machines(roles=["nodes", "clients"], node_count=max_clients,
+                                 start_index=start_index + max_hosts)
 
     resources.acquire(with_docker="nodes")
 
@@ -115,9 +131,9 @@ def run(site: str,
             {"path": "@root/data", "tags": ["data"]}
         ]).build()
 
-        rampup_rate_type, rampup_rate_limit = rate_limit_from_expr(_rampup_rate_limit, csv_input, output_ft.path("raw"))
-        main_rate_type, main_rate_limit = rate_limit_from_expr(_main_rate_limit, csv_input, output_ft.path("raw"))
-        warmup_rate_type, warmup_rate_limit = rate_limit_from_expr(_warmup_rate_limit, csv_input, output_ft.path("raw"))
+        rampup_rate_type, rampup_rate_limiter = get_rate_limiter(_rampup_rate_limit, csv_input, output_ft.path("raw"))
+        main_rate_type, main_rate_limiter = get_rate_limiter(_main_rate_limit, csv_input, output_ft.path("raw"))
+        warmup_rate_type, warmup_rate_limiter = get_rate_limiter(_warmup_rate_limit, csv_input, output_ft.path("raw"))
 
         cassandra_hosts = list(resources.roles["cassandra"][:_hosts])
         nb_hosts = list(resources.roles["clients"][:_clients])
@@ -166,6 +182,8 @@ def run(site: str,
         logging.info(cassandra.status())
 
         # Rampup
+        rampup_rate_limit = rampup_rate_limiter(1)
+
         logging.info("Executing rampup phase.")
         logging.info(f"Rate: {rampup_rate_limit} ops/second.")
         logging.info(f"Ops: {_keys} ops.")
@@ -235,12 +253,11 @@ def run(site: str,
             ]).build()
 
             if run_index <= 0:
+                warmup_rate_limit = warmup_rate_limiter(run_index)
                 main_rate_limit_per_client = warmup_rate_limit / _clients
             else:
-                if main_rate_type == "linear":
-                    main_rate_limit_per_client = (run_index * main_rate_limit) / _clients
-                else:
-                    main_rate_limit_per_client = main_rate_limit / _clients
+                main_rate_limit = main_rate_limiter(run_index)
+                main_rate_limit_per_client = main_rate_limit / _clients
 
             if not pd.isna(_ops):
                 ops_per_client = _ops / _clients
@@ -290,14 +307,15 @@ def run(site: str,
             }
 
             if main_rate_limit_per_client >= MIN_RATE_LIMIT:
-                estimated_duration = read_ops_per_client / main_rate_limit_per_client
+                main_duration = read_ops_per_client / main_rate_limit_per_client
+
                 read_params["cyclerate"] = main_rate_limit_per_client
-                write_params["cyclerate"] = write_ops_per_client / estimated_duration
+                write_params["cyclerate"] = write_ops_per_client / main_duration
 
                 logging.info(f"Number of clients: {_clients}.")
                 logging.info(f"Rate/client: {main_rate_limit_per_client} ops/second.")
                 logging.info(f"Ops/client: {read_ops_per_client} ops.")
-                logging.info(f"Total duration: {estimated_duration} seconds.")
+                logging.info(f"Total duration: {main_duration} seconds.")
 
             main_cmds = []
             for index, host in enumerate(nb.hosts):
@@ -350,9 +368,6 @@ def run(site: str,
             # Get NoSQLBench results
             nb.pull_results(_tmp_data_path)
 
-            # Get Cassandra metrics
-            # cassandra.pull_metrics(_tmp_log_path)
-
             # Save results
             _client_path = run_output_ft.path("clients")
             _host_path = run_output_ft.path("hosts")
@@ -385,18 +400,6 @@ def run(site: str,
                 else:
                     logging.warning(f"{_dstat_dir} does not exist.")
 
-                # _metrics_dir = _tmp_log_path / host.address / "metrics"
-                # if _metrics_dir.exists():
-                #     shutil.copytree(_metrics_dir, _host_path / host.address / "metrics")
-                # else:
-                #     logging.warning(f"{_metrics_dir} does not exist.")
-                #
-                # _log_dir = _tmp_log_path / host.address / "log"
-                # if _log_dir.exists():
-                #     shutil.copytree(_log_dir, _host_path / host.address / "log")
-                # else:
-                #     logging.warning(f"{_log_dir} does not exist.")
-
             run_output_ft.remove("tmp")
 
         # Pull Cassandra logs
@@ -406,7 +409,8 @@ def run(site: str,
         logging.info("Destroying instances.")
 
         nb.destroy()
-        cassandra.shutdown().destroy()
+
+        cassandra.destroy()
 
     # Release resources
     resources.release()
@@ -421,6 +425,7 @@ if __name__ == "__main__":
     DEFAULT_JOB_NAME = "cassandra"
     DEFAULT_SITE = "nancy"
     DEFAULT_CLUSTER = "gros"
+    DEFAULT_START_INDEX = 1
     DEFAULT_ENV_NAME = "debian11-x64-min"
     DEFAULT_WALLTIME = "00:30:00"
     DEFAULT_REPORT_INTERVAL = 10
@@ -434,6 +439,7 @@ if __name__ == "__main__":
     parser.add_argument("--job-name", type=str, default=DEFAULT_JOB_NAME)
     parser.add_argument("--site", type=str, default=DEFAULT_SITE)
     parser.add_argument("--cluster", type=str, default=DEFAULT_CLUSTER)
+    parser.add_argument("--start-index", type=str, default=DEFAULT_START_INDEX)
     parser.add_argument("--env-name", type=str, default=DEFAULT_ENV_NAME)
     parser.add_argument("--reservation", type=str, default=None)
     parser.add_argument("--walltime", type=str, default=DEFAULT_WALLTIME)
@@ -470,5 +476,5 @@ if __name__ == "__main__":
 
     logging.basicConfig(**log_options)
 
-    run(site=args.site, cluster=args.cluster, settings=settings, csv_input=csv_input, output_path=output_path,
-        report_interval=args.report_interval, histogram_filter=args.histogram_filter)
+    run(site=args.site, cluster=args.cluster, start_index=args.start_index, settings=settings, csv_input=csv_input,
+        output_path=output_path, report_interval=args.report_interval, histogram_filter=args.histogram_filter)

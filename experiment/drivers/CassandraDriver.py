@@ -240,32 +240,6 @@ class CassandraDriver(Driver):
 
         return self
 
-    def shutdown(self):
-        """
-        Shutdown a Cassandra cluster.
-
-        Like for startup process, we stop nodes one at a time.
-        We disable communication channels, and we drain data to disk.
-
-        Then we wait for the rest of the cluster to acknowledge the
-        node deletion. This should update and keep gossip state consistent.
-
-        At the end, the cluster is ready to be destroyed.
-        """
-
-        # for index, host in enumerate(reversed(self.hosts)):
-        #     # self.nodetool("disablebinary", [host])
-        #     # self.nodetool("disablegossip", [host])
-        #     # self.nodetool("drain", [host])
-        #     self.nodetool(f"assassinate {host.address}")
-        #
-        #     time.sleep(CassandraDriver.DELAY_IN_SECONDS)
-        #
-        #     logging.info(f"[{host.address}] Cassandra has been shutdown "
-        #                  f"({index + 1}/{self.host_count}).")
-
-        return self
-
     def destroy(self):
         """
         Destroy a Cassandra instance.
