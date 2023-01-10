@@ -115,7 +115,7 @@ def run(site: str,
         _workload_config_file = params["workload_config_file"]
         _clients = params["clients"]
         _client_threads = params["client_threads"]
-        _client_stride = params["client_stride"]
+        _cycle_per_stride = params["cycle_per_stride"]
 
         if pd.isna(_ops) and pd.isna(_duration):
             logging.warning("Ops or duration must be set.")
@@ -214,7 +214,7 @@ def run(site: str,
                     "threads": "auto",
                     "cyclerate": rampup_rate_limit,
                     "cycles": f"1..{int(_keys) + 1}",
-                    "stride": int(_client_stride),
+                    "stride": 1000,
                     "errors": "warn,retry",
                     "host": cassandra.get_host_address(0),
                     "localdc": "datacenter1",
@@ -276,6 +276,8 @@ def run(site: str,
             read_threads = int(read_ratio * _client_threads)
             write_threads = int(write_ratio * _client_threads)
 
+            cycle_per_stride = int(_cycle_per_stride)
+
             read_params = {
                 "alias": "read",
                 "driver": "cqld4",
@@ -283,7 +285,7 @@ def run(site: str,
                 "workload": nb_workload_config,
                 "tags": "block:main-read",
                 "threads": read_threads,
-                "stride": int(_client_stride),
+                "stride": cycle_per_stride,
                 "errors": "warn,timer",
                 "host": cassandra.get_host_addresses(),
                 "localdc": "datacenter1",
@@ -299,7 +301,7 @@ def run(site: str,
                 "workload": nb_workload_config,
                 "tags": "block:main-write",
                 "threads": write_threads,
-                "stride": int(_client_stride),
+                "stride": cycle_per_stride,
                 "errors": "warn,timer",
                 "host": cassandra.get_host_addresses(),
                 "localdc": "datacenter1",
@@ -311,13 +313,19 @@ def run(site: str,
             if main_rate_limit_per_client >= MIN_RATE_LIMIT:
                 main_duration = read_ops_per_client / main_rate_limit_per_client
 
-                read_params["cyclerate"] = main_rate_limit_per_client
-                write_params["cyclerate"] = write_ops_per_client / main_duration
+                # read_params["cyclerate"] = main_rate_limit_per_client
+                # write_params["cyclerate"] = write_ops_per_client / main_duration
+
+                stride_rate_per_client = main_rate_limit_per_client / cycle_per_stride
+
+                read_params["striderate"] = stride_rate_per_client
+                write_params["striderate"] = (write_ops_per_client / main_duration) / cycle_per_stride
 
                 logging.info(f"Number of clients: {_clients}.")
-                logging.info(f"Rate/client: {main_rate_limit_per_client} ops/second.")
+                logging.info(f"Rate/client: {main_rate_limit_per_client} ops/second "
+                             f"({stride_rate_per_client} strides/second).")
                 logging.info(f"Ops/client: {read_ops_per_client} ops.")
-                logging.info(f"Total duration: {main_duration} seconds.")
+                logging.info(f"Total expected duration: {main_duration} seconds.")
 
             main_cmds = []
             for index, host in enumerate(nb.hosts):
