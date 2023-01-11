@@ -61,7 +61,7 @@ blocks:
       main-select:
         type: prepared
         stmt: |
-          SELECT key, value FROM TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) WHERE key = {rw_key} LIMIT 1;
+          SELECT * FROM TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) WHERE key = {rw_key} LIMIT 1;
   main-write:
     params:
       ratio: TEMPLATE(writeratio,1)
