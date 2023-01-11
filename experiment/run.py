@@ -355,8 +355,9 @@ def run(site: str,
                     host,
                     Scenario.create(*commands)
                     .logs_dir(nb_data_path)
-                    .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}")
                     .log_histostats(nb_data_path / f"histostats.csv:{histogram_filter}")
+                    .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}")
+                    .classic_histograms(nb_data_path / f"classic_histograms.csv:{histogram_filter}")
                     .report_summary_to(nb_data_path / "summary.txt")
                     .report_csv_to(nb_data_path / "csv")
                     .report_interval(report_interval)
@@ -439,8 +440,8 @@ if __name__ == "__main__":
     DEFAULT_START_INDEX = 1
     DEFAULT_ENV_NAME = "debian11-x64-min"
     DEFAULT_WALLTIME = "00:30:00"
-    DEFAULT_REPORT_INTERVAL = 10
-    DEFAULT_HISTOGRAM_FILTER = "read.result-success:10s"
+    DEFAULT_REPORT_INTERVAL = 1
+    DEFAULT_HISTOGRAM_FILTER = "read.result-success:1s"
 
     set_config(ansible_stdout="noop")
 

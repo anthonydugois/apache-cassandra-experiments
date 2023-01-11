@@ -123,6 +123,11 @@ class Scenario:
 
         return self
 
+    def classic_histograms(self, value):
+        self.arg("--classic-histograms", value)
+
+        return self
+
     def log_histostats(self, value):
         self.arg("--log-histostats", value)
 
