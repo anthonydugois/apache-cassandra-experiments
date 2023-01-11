@@ -24,6 +24,7 @@ LOCAL_FILETREE = FileTree().define([
 DSTAT_SLEEP_IN_SEC = 5
 RUN_SLEEP_IN_SEC = 120  # 2 minutes
 FLUSH_SLEEP_IN_SEC = 1800  # 30 minutes
+WARMUP_DURATION_IN_SEC = 3600  # 60 minutes
 
 MIN_RATE_LIMIT = 100.0
 
@@ -257,14 +258,15 @@ def run(site: str,
             if run_index <= 0:
                 warmup_rate_limit = warmup_rate_limiter(run_index)
                 main_rate_limit_per_client = warmup_rate_limit / _clients
+                ops_per_client = WARMUP_DURATION_IN_SEC * main_rate_limit_per_client
             else:
                 main_rate_limit = main_rate_limiter(run_index)
                 main_rate_limit_per_client = main_rate_limit / _clients
 
-            if not pd.isna(_ops):
-                ops_per_client = _ops / _clients
-            else:
-                ops_per_client = _duration * main_rate_limit_per_client
+                if not pd.isna(_ops):
+                    ops_per_client = _ops / _clients
+                else:
+                    ops_per_client = _duration * main_rate_limit_per_client
 
             rw_total = _read_ratio + _write_ratio
             read_ratio = _read_ratio / rw_total
@@ -312,20 +314,19 @@ def run(site: str,
 
             if main_rate_limit_per_client >= MIN_RATE_LIMIT:
                 main_duration = read_ops_per_client / main_rate_limit_per_client
-
-                # read_params["cyclerate"] = main_rate_limit_per_client
-                # write_params["cyclerate"] = write_ops_per_client / main_duration
-
                 stride_rate_per_client = main_rate_limit_per_client / cycle_per_stride
 
                 read_params["striderate"] = stride_rate_per_client
                 write_params["striderate"] = (write_ops_per_client / main_duration) / cycle_per_stride
 
                 logging.info(f"Number of clients: {_clients}.")
-                logging.info(f"Rate/client: {main_rate_limit_per_client} ops/second "
-                             f"({stride_rate_per_client} strides/second).")
+                logging.info(f"Rate: {_clients * main_rate_limit_per_client:.2f} ops/second"
+                             f"({_clients * stride_rate_per_client:.2f} strides/second).")
+                logging.info(f"Rate/client: {main_rate_limit_per_client:.2f} ops/second "
+                             f"({stride_rate_per_client:.2f} strides/second).")
+                logging.info(f"Ops: {_clients * read_ops_per_client} ops.")
                 logging.info(f"Ops/client: {read_ops_per_client} ops.")
-                logging.info(f"Total expected duration: {main_duration} seconds.")
+                logging.info(f"Total expected duration: {main_duration:.3f} seconds.")
 
             main_cmds = []
             for index, host in enumerate(nb.hosts):
