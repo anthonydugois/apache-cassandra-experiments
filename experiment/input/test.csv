@@ -1,2 +1,2 @@
 id,name,repeat,hosts,rf,read_ratio,write_ratio,keys,ops,duration,rampup_rate_limit,main_rate_limit,warmup_rate_limit,key_dist,key_size,value_size_dist,docker_image,config_file,driver_config_file,workload_config_file,clients,client_threads,cycle_per_stride
-xp0_1,xp0_lzipf_base_3,10,3,3,100,0,150000000,NA,600,fixed=30000,"linear=10000,10000",fixed=1000,"ApproximatedZipf(150000000,0.9)",16,FixedValue(1024),adugois1/apache-cassandra-base:latest,xp0/cassandra-base.yaml,without-token-map.conf,cql.yaml,3,360,100
+xp0_1,xp0_lzipf_base_3,10,3,3,100,0,150000000,NA,600,fixed=30000,"linear=2000,2000",fixed=1000,"ApproximatedZipf(150000000,0.9)",16,FixedValue(1024),adugois1/apache-cassandra-base:latest,xp0/cassandra-base.yaml,without-token-map.conf,cql.yaml,3,500,100
