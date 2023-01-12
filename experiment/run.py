@@ -320,7 +320,7 @@ def run(site: str,
                 write_params["striderate"] = (write_ops_per_client / main_duration) / cycle_per_stride
 
                 logging.info(f"Number of clients: {_clients}.")
-                logging.info(f"Rate: {_clients * main_rate_limit_per_client:.2f} ops/second"
+                logging.info(f"Rate: {_clients * main_rate_limit_per_client:.2f} ops/second "
                              f"({_clients * stride_rate_per_client:.2f} strides/second).")
                 logging.info(f"Rate/client: {main_rate_limit_per_client:.2f} ops/second "
                              f"({stride_rate_per_client:.2f} strides/second).")
