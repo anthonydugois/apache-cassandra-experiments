@@ -17,7 +17,7 @@ HIST_DIGITS = 3
 
 def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, percentiles=None):
     if percentiles is None:
-        percentiles = range(1, 100)
+        percentiles = [*range(1, 100), 99.9, 99.99]
 
     rows = [
         {"id": _id, "run": run_index, "stat_name": "count", "stat_value": hist.get_total_count()},
