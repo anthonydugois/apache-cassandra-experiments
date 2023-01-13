@@ -52,7 +52,7 @@ blocks:
             f8 text,
             f9 text,
             PRIMARY KEY (key)
-          );
+          ) WITH compression = {'enabled': false} AND speculative_retry = 'NONE';
   rampup:
     params:
       cl: LOCAL_ONE
