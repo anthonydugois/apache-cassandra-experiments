@@ -7,9 +7,10 @@ bindings:
   seq_value:
     SaveLong("id") -> long;
     TEMPLATE(valuesizedist,); ToLong() -> long;
+    Div(10);
     SaveLong("size") -> long;
     LoadLong("id") -> long;
-    CharBufImage("a-zA-Z0-9", 10000000, LoadLong("size") -> long) -> java.nio.CharBuffer; ToString() -> String
+    CharBufImage("a-zA-Z0-9", 1000000, LoadLong("size") -> long) -> java.nio.CharBuffer; ToString() -> String
   rw_key:
     TEMPLATE(keydist,); ToLong() -> long;
     SaveLong("id") -> long;
@@ -40,7 +41,16 @@ blocks:
         stmt: |
           CREATE TABLE IF NOT EXISTS TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) (
             key text,
-            value text,
+            f0 text,
+            f1 text,
+            f2 text,
+            f3 text,
+            f4 text,
+            f5 text,
+            f6 text,
+            f7 text,
+            f8 text,
+            f9 text,
             PRIMARY KEY (key)
           );
   rampup:
@@ -51,11 +61,12 @@ blocks:
       rampup-insert:
         type: prepared
         stmt: |
-          INSERT INTO TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) (key, value) VALUES ({seq_key}, {seq_value});
+          INSERT INTO TEMPLATE(keyspace,baselines).TEMPLATE(table,keyvalue) (key, f0, f1, f2, f3, f4, f5, f6, f7, f8, f9)
+          VALUES ({seq_key}, {seq_value}, {seq_value}, {seq_value}, {seq_value}, {seq_value}, {seq_value}, {seq_value}, {seq_value}, {seq_value}, {seq_value});
   main-read:
     params:
       ratio: TEMPLATE(readratio,1)
-      cl: LOCAL_ONE
+      cl: LOCAL_QUORUM
       timeout: 2.0
     ops:
       main-select:
