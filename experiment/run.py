@@ -288,6 +288,7 @@ def run(site: str,
                 "tags": "block:main-read",
                 "threads": read_threads,
                 "stride": cycle_per_stride,
+                "hdr_digits": 5,
                 "errors": "warn,timer",
                 "host": cassandra.get_host_addresses(),
                 "localdc": "datacenter1",
@@ -304,6 +305,7 @@ def run(site: str,
                 "tags": "block:main-write",
                 "threads": write_threads,
                 "stride": cycle_per_stride,
+                "hdr_digits": 5,
                 "errors": "warn,timer",
                 "host": cassandra.get_host_addresses(),
                 "localdc": "datacenter1",
@@ -357,7 +359,6 @@ def run(site: str,
                     .logs_dir(nb_data_path)
                     .log_histostats(nb_data_path / f"histostats.csv:{histogram_filter}")
                     .log_histograms(nb_data_path / f"histograms.csv:{histogram_filter}")
-                    .classic_histograms(nb_data_path / f"classic_histograms.csv:{histogram_filter}")
                     .report_summary_to(nb_data_path / "summary.txt")
                     .report_csv_to(nb_data_path / "csv")
                     .report_interval(report_interval)
