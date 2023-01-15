@@ -13,6 +13,7 @@ bindings:
     CharBufImage("a-zA-Z0-9", 1000000, LoadLong("size") -> long) -> java.nio.CharBuffer; ToString() -> String
   rw_key:
     TEMPLATE(keydist,); ToLong() -> long;
+    Hash(); Mod(TEMPLATE(keycount,)); Add(1);
     SaveLong("id") -> long;
     TEMPLATE(valuesizedist,); ToLong() -> long;
     SaveLong("size") -> long;
