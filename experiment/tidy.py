@@ -10,9 +10,9 @@ from hdrh.histogram import HdrHistogram
 
 ROOT = pathlib.Path(__file__).parent
 
-HIST_MIN = 1
-HIST_MAX = 1_000_000_000_000
-HIST_DIGITS = 3
+HIST_MIN = 1_000
+HIST_MAX = 1_000_000_000
+HIST_DIGITS = 5
 
 
 def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, percentiles=None):
