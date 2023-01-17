@@ -12,7 +12,7 @@ ROOT = pathlib.Path(__file__).parent
 
 HIST_MIN = 1_000
 HIST_MAX = 1_000_000_000
-HIST_DIGITS = 5
+HIST_DIGITS = 3
 
 
 def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, percentiles=None):
@@ -63,7 +63,7 @@ def tidy(data_path: str,
         logging.info(f"[{_name}] Processing {_set_path}.")
         logging.info(f"[{_name}] Input parameters:\n\n{params}\n\n")
 
-        for run_index in range(_repeat + 1):
+        for run_index in range(1, _repeat + 1):
             _run_path = _set_path / f"run-{run_index}"
             _client_path = _run_path / "clients"
             _host_path = _run_path / "hosts"
