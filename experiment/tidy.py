@@ -10,8 +10,8 @@ from hdrh.histogram import HdrHistogram
 
 ROOT = pathlib.Path(__file__).parent
 
-HIST_MIN = 1_000
-HIST_MAX = 1_000_000_000
+HIST_MIN = 0
+HIST_MAX = 10_000_000_000
 HIST_DIGITS = 3
 
 
