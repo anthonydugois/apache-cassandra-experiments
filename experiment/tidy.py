@@ -27,7 +27,7 @@ def aggregate_histogram(hist_file):
         if decoded_hist.get_total_count() > 0:
             hist.add(decoded_hist)
 
-    return hist
+    return hist.encode()
 
 
 def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, percentiles=None):
@@ -164,9 +164,11 @@ def tidy(data_path: str,
                 hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
 
                 with Pool(processes=_hist_file_count) as pool:
-                    for _hist in pool.map(aggregate_histogram, _hist_files):
-                        if _hist.get_total_count() > 0:
-                            hist.add(_hist)
+                    for encoded_hist in pool.map(aggregate_histogram, _hist_files):
+                        decoded_hist = HdrHistogram.decode(encoded_hist)
+
+                        if decoded_hist.get_total_count() > 0:
+                            hist.add(decoded_hist)
 
                 # for hist_file in _hist_files:
                 #     logging.info(f"[{_name}/run-{run_index}] {hist_file}")
