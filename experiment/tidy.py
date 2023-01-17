@@ -163,8 +163,9 @@ def tidy(data_path: str,
                         decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
                         hist_count = decoded_hist.get_total_count()
 
-                        logging.info(f"Getting {hist_count} values from {hist_start_time} to {hist_end_time}"
-                                     f" (length: {hist_interval_length}).")
+                        logging.info(f"[{_name}/run-{run_index}]"
+                                     f" Getting {hist_count} values from {hist_start_time:.2f} to {hist_end_time:.2f}"
+                                     f" (length: {hist_interval_length:.2f}).")
 
                         if hist_count > 0:
                             hist.add(decoded_hist)
