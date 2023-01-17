@@ -443,8 +443,8 @@ if __name__ == "__main__":
     DEFAULT_START_INDEX = 1
     DEFAULT_ENV_NAME = "debian11-x64-min"
     DEFAULT_WALLTIME = "00:30:00"
-    DEFAULT_REPORT_INTERVAL = 1
-    DEFAULT_HISTOGRAM_FILTER = "read.result-success:1s"
+    DEFAULT_REPORT_INTERVAL = 10
+    DEFAULT_HISTOGRAM_FILTER = f"read.result-success:{DEFAULT_REPORT_INTERVAL}s"
 
     set_config(ansible_stdout="noop")
 
