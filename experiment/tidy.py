@@ -3,6 +3,7 @@ import pathlib
 import tarfile
 from typing import cast, Iterable, Hashable
 from io import StringIO
+from multiprocessing import Pool
 
 import pandas as pd
 import numpy as np
@@ -13,6 +14,20 @@ ROOT = pathlib.Path(__file__).parent
 HIST_MIN = 0
 HIST_MAX = 10_000_000_000
 HIST_DIGITS = 3
+
+
+def aggregate_histogram(hist_file):
+    hist_df = pd.read_csv(hist_file, skiprows=3, index_col=0)
+    hist_df.reset_index(drop=True, inplace=True)
+
+    hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+    for _, hist_row in hist_df.iterrows():
+        decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
+
+        if decoded_hist.get_total_count() > 0:
+            hist.add(decoded_hist)
+
+    return hist
 
 
 def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, percentiles=None):
@@ -140,35 +155,43 @@ def tidy(data_path: str,
             for _path in _client_path.glob("*.grid5000.fr"):
                 _hist_path = _path / "data"
                 _hist_files = list(_hist_path.glob("**/histograms.csv"))
-                if len(_hist_files) <= 0:
+                _hist_file_count = len(_hist_files)
+
+                if _hist_file_count <= 0:
                     logging.warning(f"[{_name}/run-{run_index}] No Histogram file in {_hist_path}.")
                     continue
 
                 hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
-                for hist_file in _hist_files:
-                    logging.info(f"[{_name}/run-{run_index}] {hist_file}")
 
-                    hist_df = pd.read_csv(hist_file, skiprows=3, index_col=0)
-                    hist_df.reset_index(drop=True, inplace=True)
+                with Pool(processes=_hist_file_count) as pool:
+                    for _hist in pool.map(aggregate_histogram, _hist_files):
+                        if _hist.get_total_count() > 0:
+                            hist.add(_hist)
 
-                    # Filter histograms in time range
-                    hist_df = hist_df[(hist_df["StartTimestamp"] >= start_time) &
-                                      ((hist_df["StartTimestamp"] + hist_df["Interval_Length"]) <= end_time)]
-
-                    for _, hist_row in hist_df.iterrows():
-                        hist_start_time = hist_row["StartTimestamp"]
-                        hist_interval_length = hist_row["Interval_Length"]
-                        hist_end_time = hist_start_time + hist_interval_length
-
-                        decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
-                        hist_count = decoded_hist.get_total_count()
-
-                        logging.info(f"[{_name}/run-{run_index}]"
-                                     f" Getting {hist_count} values from {hist_start_time:.2f} to {hist_end_time:.2f}"
-                                     f" (length: {hist_interval_length:.2f}).")
-
-                        if hist_count > 0:
-                            hist.add(decoded_hist)
+                # for hist_file in _hist_files:
+                #     logging.info(f"[{_name}/run-{run_index}] {hist_file}")
+                #
+                #     hist_df = pd.read_csv(hist_file, skiprows=3, index_col=0)
+                #     hist_df.reset_index(drop=True, inplace=True)
+                #
+                #     # Filter histograms in time range
+                #     hist_df = hist_df[(hist_df["StartTimestamp"] >= start_time) &
+                #                       ((hist_df["StartTimestamp"] + hist_df["Interval_Length"]) <= end_time)]
+                #
+                #     for _, hist_row in hist_df.iterrows():
+                #         hist_start_time = hist_row["StartTimestamp"]
+                #         hist_interval_length = hist_row["Interval_Length"]
+                #         hist_end_time = hist_start_time + hist_interval_length
+                #
+                #         decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
+                #         hist_count = decoded_hist.get_total_count()
+                #
+                #         logging.info(f"[{_name}/run-{run_index}]"
+                #                      f" Getting {hist_count} values from {hist_start_time:.2f} to {hist_end_time:.2f}"
+                #                      f" (length: {hist_interval_length:.2f}).")
+                #
+                #         if hist_count > 0:
+                #             hist.add(decoded_hist)
 
                 if hist.get_total_count() > 0:
                     cur_hist.add(hist)
