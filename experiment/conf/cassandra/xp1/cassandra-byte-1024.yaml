@@ -584,13 +584,13 @@ seed_provider:
 # On the other hand, since writes are almost never IO bound, the ideal
 # number of "concurrent_writes" is dependent on the number of cores in
 # your system; (8 * number_of_cores) is a good rule of thumb.
-concurrent_reads: 128
-concurrent_writes: 144
-concurrent_counter_writes: 128
+concurrent_reads: 32
+concurrent_writes: 288
+concurrent_counter_writes: 32
 
 # For materialized view writes, as there is a read involved, so this should
 # be limited by the less of concurrent reads or concurrent writes.
-concurrent_materialized_view_writes: 128
+concurrent_materialized_view_writes: 32
 
 # Maximum memory to use for inter-node and client-server networking buffers.
 #
@@ -615,19 +615,19 @@ concurrent_materialized_view_writes: 128
 # if the default 64k chunk size is used).
 # Memory is only allocated when needed.
 # Min unit: MiB
-# file_cache_size: 512MiB
+file_cache_size: 2048MiB
 
 # Flag indicating whether to allocate on or off heap when the sstable buffer
 # pool is exhausted, that is when it has exceeded the maximum memory
 # file_cache_size, beyond which it will not cache buffers but allocate on request.
 
-# buffer_pool_use_heap_if_exhausted: true
+buffer_pool_use_heap_if_exhausted: true
 
 # The strategy for optimizing disk read
 # Possible values are:
 # ssd (for solid state disks, the default)
 # spinning (for spinning disks)
-# disk_optimization_strategy: ssd
+disk_optimization_strategy: ssd
 
 # Total permitted memory to use for memtables. Cassandra will stop
 # accepting writes when the limit is exceeded until a flush completes,
@@ -714,7 +714,7 @@ memtable_allocation_type: heap_buffers
 # and flush size and frequency. More is not better you just need enough flush writers
 # to never stall waiting for flushing to free memory.
 #
-# memtable_flush_writers: 2
+memtable_flush_writers: 2
 
 # Total space to use for change-data-capture logs on disk.
 #
@@ -754,7 +754,7 @@ index_summary_resize_interval: 60m
 # buffers. Enable this to avoid sudden dirty buffer flushing from
 # impacting read latencies. Almost always a good idea on SSDs; not
 # necessarily on platters.
-trickle_fsync: false
+trickle_fsync: true
 # Min unit: KiB
 trickle_fsync_interval: 10240KiB
 
@@ -986,7 +986,7 @@ column_index_cache_size: 2KiB
 #
 # If your data directories are backed by SSD, you should increase this
 # to the number of cores.
-concurrent_compactors: 8
+concurrent_compactors: 36
 
 # Number of simultaneous repair validations to allow. If not set or set to
 # a value less than 1, it defaults to the value of concurrent_compactors.
@@ -1007,7 +1007,7 @@ concurrent_materialized_view_builders: 1
 # Setting this to 0 disables throttling. Note that this accounts for all types
 # of compaction, including validation compaction (building Merkle trees
 # for repairs).
-compaction_throughput: 64MiB/s
+compaction_throughput: 512MiB/s
 
 # When compacting, the replacement sstable(s) can be opened before they
 # are completely written, and used in place of the prior sstables for
@@ -1053,7 +1053,7 @@ uuid_sstable_identifiers_enabled: false
 # mostly sequential IO when streaming data during bootstrap or repair, which
 # can lead to saturating the network connection and degrading rpc performance.
 # When unset, the default is 200 Mbps or 24 MiB/s.
-# stream_throughput_outbound: 24MiB/s
+stream_throughput_outbound: 1024MiB/s
 
 # Throttles all streaming file transfer between the datacenters,
 # this setting allows users to throttle inter dc stream throughput in addition
@@ -1078,7 +1078,7 @@ uuid_sstable_identifiers_enabled: false
 # How long the coordinator should wait for read operations to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-read_request_timeout: 2000ms
+read_request_timeout: 10000ms
 # How long the coordinator should wait for seq or index scans to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
@@ -1090,7 +1090,7 @@ write_request_timeout: 10000ms
 # How long the coordinator should wait for counter writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-counter_write_request_timeout: 5000ms
+counter_write_request_timeout: 10000ms
 # How long a coordinator should continue to retry a CAS operation
 # that contends with other proposals for the same row.
 # Lowest acceptable value is 10 ms.
@@ -1887,3 +1887,4 @@ local_read_queue:
 oracles:
 
 state_feedback:
+  - BYTE_ARRAY_1024
