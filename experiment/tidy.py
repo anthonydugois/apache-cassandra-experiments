@@ -16,11 +16,9 @@ HIST_MAX = 10_000_000_000
 HIST_DIGITS = 3
 
 
-def aggregate_histogram(hist_file):
-    hist_df = pd.read_csv(hist_file, skiprows=3, index_col=0)
-    hist_df.reset_index(drop=True, inplace=True)
-
+def aggregate_histogram(hist_df):
     hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+
     for _, hist_row in hist_df.iterrows():
         decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
 
@@ -32,7 +30,8 @@ def aggregate_histogram(hist_file):
 
 def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, percentiles=None):
     if percentiles is None:
-        percentiles = [*range(1, 100), 99.9, 99.99]
+        percentiles = [*np.arange(1, 95),
+                       *np.arange(95, 100, 0.1).round(2)]
 
     rows = [
         {"id": _id, "run": run_index, "stat_name": "count", "stat_value": hist.get_total_count()},
@@ -48,10 +47,7 @@ def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, perce
     return pd.DataFrame(rows)
 
 
-def tidy(data_path: str,
-         start_time: float,
-         end_time: float,
-         archive: bool):
+def tidy(data_path: str, archive: bool):
     _data_path = pathlib.Path(data_path)
     _raw_path = _data_path / "raw"
 
@@ -64,13 +60,16 @@ def tidy(data_path: str,
         "dstat_clients": [],
         "dstat_hosts": [],
         "latency": [],
-        "timeseries": []
+        "latency_ts": [],
+        "stretch": [],
+        "stretch_ts": []
     }
 
     for _id, params in parameters.iterrows():
         _name = params["name"]
         _repeat = params["repeat"]
         _set_path = _raw_path / _name
+
         if not _set_path.exists():
             logging.warning(f"{_set_path} does not exist.")
             continue
@@ -82,6 +81,7 @@ def tidy(data_path: str,
             _run_path = _set_path / f"run-{run_index}"
             _client_path = _run_path / "clients"
             _host_path = _run_path / "hosts"
+
             if not _run_path.exists():
                 logging.warning(f"{_run_path} does not exist.")
                 continue
@@ -89,17 +89,13 @@ def tidy(data_path: str,
             logging.info(f"[{_name}/run-{run_index}] Processing {_run_path}.")
 
             # Process Dstat results.
-            # We do this for clients and hosts.
             for key in ["clients", "hosts"]:
                 _key_path = _run_path / key
+
                 for _path in _key_path.glob("*.grid5000.fr"):
                     _dstat_path = _path / "dstat"
-                    _dstat_files = list(_dstat_path.glob("**/*-dstat.csv"))
-                    if len(_dstat_files) <= 0:
-                        logging.warning(f"[{_name}/run-{run_index}] No Dstat file in {_dstat_path}.")
-                        continue
 
-                    for _dstat_file in _dstat_files:
+                    for _dstat_file in _dstat_path.glob("**/*-dstat.csv"):
                         with open(_dstat_file, "r") as dstat_file:
                             dstat_lines = dstat_file.readlines()[4:]
                             dstat_headers, dstat_rows = dstat_lines[:2], dstat_lines[2:]
@@ -134,12 +130,8 @@ def tidy(data_path: str,
             # Process Timeseries results.
             for _path in _client_path.glob("*.grid5000.fr"):
                 _ts_path = _path / "data"
-                _ts_files = list(_ts_path.glob("**/read.result.csv"))
-                if len(_ts_files) <= 0:
-                    logging.warning(f"[{_name}/run-{run_index}] No Timeseries file in {_ts_path}.")
-                    continue
 
-                for _ts_file in _ts_files:
+                for _ts_file in _ts_path.glob("**/read.result-success.csv"):
                     ts_df = pd.read_csv(_ts_file, index_col=False)
 
                     ts_df.rename(columns={"t": "epoch"}, inplace=True)
@@ -148,57 +140,52 @@ def tidy(data_path: str,
                     ts_df["run"] = run_index
                     ts_df["host_address"] = _path.name
 
-                    dfs["timeseries"].append(ts_df)
+                    dfs["latency_ts"].append(ts_df)
 
-            # Process Latency histogram
-            cur_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+                for _ts_file in _ts_path.glob("**/read.stretch.csv"):
+                    ts_df = pd.read_csv(_ts_file, index_col=False)
+
+                    ts_df.rename(columns={"t": "epoch"}, inplace=True)
+                    ts_df["time"] = ts_df["epoch"] - ts_df.iloc[0]["epoch"]
+                    ts_df["id"] = _id
+                    ts_df["run"] = run_index
+                    ts_df["host_address"] = _path.name
+
+                    dfs["stretch_ts"].append(ts_df)
+
+            # Process Histogram results.
+            latency_dfs, stretch_dfs = [], []
+
             for _path in _client_path.glob("*.grid5000.fr"):
                 _hist_path = _path / "data"
-                _hist_files = list(_hist_path.glob("**/histograms.csv"))
-                _hist_file_count = len(_hist_files)
 
-                if _hist_file_count <= 0:
-                    logging.warning(f"[{_name}/run-{run_index}] No Histogram file in {_hist_path}.")
-                    continue
+                for _hist_file in _hist_path.glob("**/histograms.csv"):
+                    hist_df = pd.read_csv(_hist_file, skiprows=3, index_col=0)
 
-                hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+                    latency_dfs.append(hist_df[hist_df.index == "Tag=read.result-success"])
+                    stretch_dfs.append(hist_df[hist_df.index == "Tag=read.stretch"])
 
-                with Pool(processes=_hist_file_count) as pool:
-                    for encoded_hist in pool.map(aggregate_histogram, _hist_files):
-                        decoded_hist = HdrHistogram.decode(encoded_hist)
+            latency_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
 
-                        if decoded_hist.get_total_count() > 0:
-                            hist.add(decoded_hist)
+            with Pool(processes=len(latency_dfs)) as pool:
+                for encoded_hist in pool.map(aggregate_histogram, latency_dfs):
+                    decoded_hist = HdrHistogram.decode(encoded_hist)
 
-                # for hist_file in _hist_files:
-                #     logging.info(f"[{_name}/run-{run_index}] {hist_file}")
-                #
-                #     hist_df = pd.read_csv(hist_file, skiprows=3, index_col=0)
-                #     hist_df.reset_index(drop=True, inplace=True)
-                #
-                #     # Filter histograms in time range
-                #     hist_df = hist_df[(hist_df["StartTimestamp"] >= start_time) &
-                #                       ((hist_df["StartTimestamp"] + hist_df["Interval_Length"]) <= end_time)]
-                #
-                #     for _, hist_row in hist_df.iterrows():
-                #         hist_start_time = hist_row["StartTimestamp"]
-                #         hist_interval_length = hist_row["Interval_Length"]
-                #         hist_end_time = hist_start_time + hist_interval_length
-                #
-                #         decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
-                #         hist_count = decoded_hist.get_total_count()
-                #
-                #         logging.info(f"[{_name}/run-{run_index}]"
-                #                      f" Getting {hist_count} values from {hist_start_time:.2f} to {hist_end_time:.2f}"
-                #                      f" (length: {hist_interval_length:.2f}).")
-                #
-                #         if hist_count > 0:
-                #             hist.add(decoded_hist)
+                    if decoded_hist.get_total_count() > 0:
+                        latency_hist.add(decoded_hist)
 
-                if hist.get_total_count() > 0:
-                    cur_hist.add(hist)
+            dfs["latency"].append(summarize_histogram(latency_hist, _id, run_index))
 
-            dfs["latency"].append(summarize_histogram(cur_hist, _id, run_index))
+            stretch_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+
+            with Pool(processes=len(stretch_dfs)) as pool:
+                for encoded_hist in pool.map(aggregate_histogram, stretch_dfs):
+                    decoded_hist = HdrHistogram.decode(encoded_hist)
+
+                    if decoded_hist.get_total_count() > 0:
+                        stretch_hist.add(decoded_hist)
+
+            dfs["stretch"].append(summarize_histogram(stretch_hist, _id, run_index))
 
     # Save CSV files
     parameters.to_csv(_tidy_path / "input.csv")
@@ -233,10 +220,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("result", type=str)
-    parser.add_argument("--start-time", type=float, default=0.0)
-    parser.add_argument("--end-time", type=float, default=float("inf"))
     parser.add_argument("--archive", action="store_true")
 
     args = parser.parse_args()
 
-    tidy(data_path=args.result, start_time=args.start_time, end_time=args.end_time, archive=args.archive)
+    tidy(data_path=args.result, archive=args.archive)
