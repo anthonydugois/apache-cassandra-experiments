@@ -23,7 +23,7 @@ LOCAL_FILETREE = FileTree().define([
 
 DSTAT_SLEEP_IN_SEC = 5
 RUN_SLEEP_IN_SEC = 120  # 2 minutes
-FLUSH_SLEEP_IN_SEC = 900  # 15 minutes
+FLUSH_SLEEP_IN_SEC = 1800  # 30 minutes
 WARMUP_DURATION_IN_SEC = 1800  # 30 minutes
 
 MIN_RATE_LIMIT = 100.0
@@ -443,7 +443,7 @@ if __name__ == "__main__":
     DEFAULT_START_INDEX = 1
     DEFAULT_ENV_NAME = "debian11-x64-min"
     DEFAULT_WALLTIME = "00:30:00"
-    DEFAULT_REPORT_INTERVAL = 10
+    DEFAULT_REPORT_INTERVAL = 1
     DEFAULT_HISTOGRAM_FILTER = f"read.(result-success|stretch):{DEFAULT_REPORT_INTERVAL}s"
 
     set_config(ansible_stdout="noop")

@@ -11,21 +11,20 @@ from hdrh.histogram import HdrHistogram
 
 ROOT = pathlib.Path(__file__).parent
 
-HIST_MIN = 1_000
-HIST_MAX = 10_000_000_000
-HIST_DIGITS = 3
 
+def histogram_aggregator(hist_min, hist_max, hist_digits):
+    def aggregate(hist_df):
+        hist = HdrHistogram(hist_min, hist_max, hist_digits)
 
-def aggregate_histogram(hist_df):
-    hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+        for _, hist_row in hist_df.iterrows():
+            decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
 
-    for _, hist_row in hist_df.iterrows():
-        decoded_hist = HdrHistogram.decode(hist_row["Interval_Compressed_Histogram"])
+            if decoded_hist.get_total_count() > 0:
+                hist.add(decoded_hist)
 
-        if decoded_hist.get_total_count() > 0:
-            hist.add(decoded_hist)
+        return hist.encode()
 
-    return hist.encode()
+    return aggregate
 
 
 def summarize_histogram(hist: HdrHistogram, _id: Hashable, run_index: int, percentiles=None):
@@ -165,10 +164,10 @@ def tidy(data_path: str, archive: bool):
                     latency_dfs.append(hist_df[hist_df.index == "Tag=read.result-success"])
                     stretch_dfs.append(hist_df[hist_df.index == "Tag=read.stretch"])
 
-            latency_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+            latency_hist = HdrHistogram(1_000, 10_000_000_000, 5)
 
             with Pool(processes=len(latency_dfs)) as pool:
-                for encoded_hist in pool.map(aggregate_histogram, latency_dfs):
+                for encoded_hist in pool.map(histogram_aggregator(1_000, 10_000_000_000, 5), latency_dfs):
                     decoded_hist = HdrHistogram.decode(encoded_hist)
 
                     if decoded_hist.get_total_count() > 0:
@@ -176,10 +175,10 @@ def tidy(data_path: str, archive: bool):
 
             dfs["latency"].append(summarize_histogram(latency_hist, _id, run_index))
 
-            stretch_hist = HdrHistogram(HIST_MIN, HIST_MAX, HIST_DIGITS)
+            stretch_hist = HdrHistogram(1, 1_000_000, 5)
 
             with Pool(processes=len(stretch_dfs)) as pool:
-                for encoded_hist in pool.map(aggregate_histogram, stretch_dfs):
+                for encoded_hist in pool.map(histogram_aggregator(1, 1_000_000, 5), stretch_dfs):
                     decoded_hist = HdrHistogram.decode(encoded_hist)
 
                     if decoded_hist.get_total_count() > 0:
