@@ -1884,8 +1884,13 @@ replica_selector:
       - threshold: '0.00001'
 
 local_read_queue:
-  - class_name: fr.ens.cassandra.se.local.read.FIFOReadQueue
+  - class_name: fr.ens.cassandra.se.local.read.RandomMultilevelReadQueue
+    parameters:
+      - levels: '2'
+        factor: '3'
 
 oracles:
+  size:
+    - class_name: fr.ens.cassandra.se.oracle.KeySizeOracle
 
 state_feedback:
