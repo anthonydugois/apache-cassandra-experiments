@@ -10,7 +10,7 @@ bindings:
     Div(10);
     SaveLong("size") -> long;
     LoadLong("id") -> long;
-    CharBufImage("a-zA-Z0-9", 1000000, LoadLong("size") -> long) -> java.nio.CharBuffer; ToString() -> String
+    CharBufImage("a-zA-Z0-9", 10000000, LoadLong("size") -> long) -> java.nio.CharBuffer; ToString() -> String
   rw_key:
     TEMPLATE(keydist,); ToLong() -> long;
     SaveLong("id") -> long;
