@@ -1880,6 +1880,8 @@ advanced_scheduling: true
 
 replica_selector:
   - class_name: fr.ens.cassandra.se.selector.PriorityDynamicSnitchingSelector
+    parameters:
+      - badness_threshold: '0'
 
 local_read_queue:
   - class_name: fr.ens.cassandra.se.local.read.RandomMultilevelReadQueue
