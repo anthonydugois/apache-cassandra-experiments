@@ -178,10 +178,10 @@ def tidy(data_path: str, archive: bool):
 
             dfs["latency"].append(summarize_histogram(latency_hist, _id, run_index))
 
-            stretch_hist = HdrHistogram(1, 1_000_000, 5)
+            stretch_hist = HdrHistogram(1, 10_000_000, 5)
 
             with Pool(processes=len(stretch_dfs)) as pool:
-                aggregate = partial(histogram_aggregator, hist_min=1, hist_max=1_000_000, hist_digits=5)
+                aggregate = partial(histogram_aggregator, hist_min=1, hist_max=10_000_000, hist_digits=5)
 
                 for encoded_hist in pool.map(aggregate, stretch_dfs):
                     decoded_hist = HdrHistogram.decode(encoded_hist)
