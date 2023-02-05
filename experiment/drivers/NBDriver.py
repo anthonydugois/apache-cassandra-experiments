@@ -189,8 +189,6 @@ class NBDriver(Driver):
         for host in self.hosts:
             host.extra.update(**extra_vars)
 
-        self.login()
-
         logging.info(f"NoSQLBench has been deployed (hosts={self.host_addresses()}).")
 
     def destroy(self):

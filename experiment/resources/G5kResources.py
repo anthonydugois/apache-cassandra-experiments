@@ -1,7 +1,9 @@
 import logging
+from pathlib import Path
 from typing import Optional
 
 import enoslib as en
+from yaml import safe_load
 
 
 class NoRoleException(Exception):
@@ -94,9 +96,13 @@ class G5kResources:
         if with_docker is not None:
             logging.info("Installing Docker...")
 
+            with Path(".credentials").open("r") as file:
+                credentials = safe_load(file)
+
             docker = en.Docker(agent=self.roles[with_docker],
                                bind_var_docker=self.bind_var_docker,
-                               registry_opts=self.docker_registry)
+                               registry_opts=self.docker_registry,
+                               credentials=credentials)
 
             docker.deploy()
 
