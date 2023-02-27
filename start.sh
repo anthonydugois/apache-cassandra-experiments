@@ -1,5 +1,7 @@
 #!/bin/sh
 
-source venv/bin/activate
+ROOT=$HOME/apache-cassandra-experiments
 
-python -m experiment.run "$@"
+cd $ROOT
+
+$ROOT/venv/bin/python -m experiment.run "$@"
