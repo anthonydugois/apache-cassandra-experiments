@@ -1887,7 +1887,7 @@ local_read_queue:
   - class_name: fr.ens.cassandra.se.local.read.RandomMultilevelReadQueue
     parameters:
       - levels: '2'
-        factor: '3'
+        factor: '10'
 
 oracles:
   size:
