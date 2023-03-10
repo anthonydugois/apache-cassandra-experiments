@@ -1,126 +1,53 @@
-suppressPackageStartupMessages({
-    library(tibble)
-    library(readr)
-    library(dplyr)
-    library(tidyr)
-    library(ggplot2)
-    library(tikzDevice)
-})
+source("plots/common.R")
 
-binned <- function(.data, bin_width) {
-    floor(.data / bin_width)
+df <- read_all_csv("archives/xp0_baseline.2023-01-24T17:14:14-light")
+
+data.latency <- df$latency %>%
+    group_by(id, stat_name) %>%
+    summarise_mean(stat_value)
+
+format_data <- function(.data) {
+    stats.levels <- c("mean", "p50", "p95.0", "p99.0")
+    stats.labels <- c("Mean", "Median", "P95", "P99")
+
+    config.levels <- c("xp0/cassandra-base.yaml", "xp0/cassandra-se.yaml")
+    config.labels <- c("Vanilla", "Hector")
+
+    rate.levels <- c("fixed=200000", "fixed=500000")
+    rate.labels <- c("200K", "500K")
+
+    .data %>%
+        inner_join(df$input, by = "id") %>%
+        filter(stat_name %in% stats.levels) %>%
+        mutate(stat_name = factor(stat_name, levels = stats.levels, labels = stats.labels),
+               config_file = factor(config_file, levels = config.levels, labels = config.labels),
+               main_rate_limit = factor(main_rate_limit, levels = rate.levels, labels = rate.labels))
 }
 
-output_dir <- "archives/xp0_baseline.2022-11-14T19:19:06-light"
+tikz(file = "plots/output/xp0.latency.tex", width = 3.5, height = 1.5)
 
-df.in <- read_csv(paste0(output_dir, "/input.csv"), col_types = "ccicciiddddccdccccciiic")
-df.ts <- read_csv(paste0(output_dir, "/timeseries.csv"), col_types = "ddddddddddddddddccdcic")
-df.lat <- read_csv(paste0(output_dir, "/latency.csv"), col_types = "dddddddddddddci")
+plot.xp0.latency <- ggplot(data = format_data(data.latency)) +
+    geom_col(mapping = aes(x = config_file,
+                           y = mean_stat_value * NANOS_TO_MILLIS,
+                           fill = config_file),
+             width = 0.7,
+             colour = "black") +
+    geom_errorbar(mapping = aes(x = config_file,
+                                ymin = mean_low_stat_value * NANOS_TO_MILLIS,
+                                ymax = mean_high_stat_value * NANOS_TO_MILLIS),
+                  width = 0.2) +
+    facet_grid(rows = vars(main_rate_limit),
+               cols = vars(stat_name),
+               scales = "free") +
+    coord_cartesian(ylim = c(0, NA)) +
+    scale_x_discrete(name = "Version") +
+    scale_y_continuous(name = "Latency (ms)") +
+    scale_fill_discrete(name = "Version") +
+    theme_bw() +
+    theme(axis.title.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          axis.text.x = element_blank())
 
-print(df.lat %>%
-          inner_join(df.in, by = "id") %>%
-          filter(name %in% c("xp0_zipf_base_nom", "xp0_zipf_se_nom")) %>%
-          pivot_longer(c(mean, p50, p75, p99), names_to = "stat_name", values_to = "stat_value") %>%
-          group_by(id, name, stat_name) %>%
-          summarise(sd_value = sd(stat_value), stat_value = mean(stat_value), .groups = "drop") %>%
-          mutate(stat_value = stat_value / 1e6, sd_value = sd_value / 1e6) %>%
-          select(stat_name, stat_value, sd_value, name))
+update_theme(plot.xp0.latency)
 
-print(df.lat %>%
-          inner_join(df.in, by = "id") %>%
-          filter(name %in% c("xp0_zipf_base_nom", "xp0_zipf_se_nom")) %>%
-          pivot_longer(c(mean, p50, p75, p99), names_to = "stat_name", values_to = "stat_value") %>%
-          group_by(id, name, stat_name) %>%
-          summarise(stat_value = mean(stat_value), .groups = "drop") %>%
-          mutate(stat_value = stat_value / 1e6) %>%
-          select(stat_name, stat_value, name) %>%
-          pivot_wider(names_from = name, values_from = stat_value) %>%
-          rename(base = xp0_zipf_base_nom, se = xp0_zipf_se_nom) %>%
-          mutate(diff = se - base, relative = diff / base))
-
-# tikz(file = "plots/output/xp0_ts.tex", width = 6, height = 4)
-#
-# BIN_WIDTH <- 8
-# START_TIME <- 200
-# END_TIME <- 800
-# TO_MS <- 1 / 1e6
-#
-# lev.name <- c("xp0_zipf_base_nom", "xp0_zipf_se_nom")
-# lab.name <- c("Cassandra", "Hector")
-#
-# df.ts %>%
-#     inner_join(df.in, by = "id") %>%
-#     filter(name %in% c("xp0_zipf_base_nom", "xp0_zipf_se_nom")) %>%
-#     group_by(id, name, run) %>%
-#     mutate(bin = binned(time, BIN_WIDTH)) %>%
-#     ungroup() %>%
-#     pivot_longer(c(mean, p75, p50, p99), names_to = "stat_name", values_to = "stat_value") %>%
-#     group_by(id, name, run, bin, stat_name) %>%
-#     summarise(stat_value = mean(stat_value), .groups = "drop") %>%  # Aggregate values in the same bin
-#     group_by(id, name, bin, stat_name) %>%
-#     summarise(mean_stat_value = mean(stat_value),
-#               min_stat_value = min(stat_value),
-#               max_stat_value = max(stat_value), .groups = "drop") %>%  # Aggregate values between runs
-#     mutate(time_in_seconds = bin * BIN_WIDTH,
-#            name = factor(name, levels = lev.name, labels = lab.name)) %>%
-#     filter(time_in_seconds > START_TIME, time_in_seconds < END_TIME) %>%
-#     ggplot(mapping = aes(x = time_in_seconds)) %+%
-#     geom_ribbon(mapping = aes(ymin = min_stat_value * TO_MS,
-#                               ymax = max_stat_value * TO_MS,
-#                               fill = name), alpha = 0.2) %+%
-#     geom_line(mapping = aes(y = mean_stat_value * TO_MS,
-#                             colour = name), size = 0.75) %+%
-#     facet_wrap(vars(stat_name), scales = "free") %+%
-#     coord_cartesian(ylim = c(0, NA)) %+%  # Make sure y axis starts at 0
-#     scale_x_continuous(name = "Time (s)") %+%
-#     scale_y_continuous(name = "Response time (ms)") %+%
-#     scale_colour_discrete(name = "Version") %+%
-#     scale_fill_discrete(name = "Version") %+%
-#     theme_bw(base_size = 10) %+%
-#     theme(panel.spacing = unit(0.2, "inches"),
-#           axis.title = element_text(size = rel(0.8)),
-#           axis.title.x = element_text(margin = margin(t = 8)),
-#           axis.title.y = element_text(margin = margin(r = 8)),
-#           strip.background = element_rect(fill = "white"),
-#           strip.text = element_text(size = rel(0.8), margin = margin(t = 3, b = 3)),
-#           legend.title = element_text(size = rel(0.8)),
-#           legend.position = "bottom")
-#
-# dev.off()
-#
-# tikz(file = "plots/output/xp0_lat.tex", width = 2.8, height = 2.5)
-#
-# TO_MS <- 1 / 1e6
-#
-# lev.name <- c("xp0_zipf_base_nom", "xp0_zipf_se_nom")
-# lab.name <- c("Cassandra", "Hector")
-#
-# df.lat %>%
-#     inner_join(df.in, by = "id") %>%
-#     filter(name %in% c("xp0_zipf_base_nom", "xp0_zipf_se_nom")) %>%
-#     pivot_longer(c(mean, p50, p75, p99), names_to = "stat_name", values_to = "stat_value") %>%
-#     group_by(id, name, stat_name) %>%
-#     summarise(mean_stat_value = mean(stat_value),
-#               min_stat_value = min(stat_value),
-#               max_stat_value = max(stat_value), .groups = "drop") %>%  # Aggregate values between runs
-#     mutate(name = factor(name, levels = lev.name, labels = lab.name)) %>%
-#     ggplot(mapping = aes(x = name)) %+%
-#     geom_col(mapping = aes(y = mean_stat_value * TO_MS,
-#                            fill = name), colour = "black", width = 0.4) %+%
-#     geom_errorbar(mapping = aes(ymin = min_stat_value * TO_MS,
-#                                 ymax = max_stat_value * TO_MS), width = 0.1) %+%
-#     facet_wrap(vars(stat_name), scales = "free") %+%
-#     coord_cartesian(ylim = c(0, NA)) %+%  # Make sure y axis starts at 0
-#     scale_x_discrete(name = "Version") %+%
-#     scale_y_continuous(name = "Response time (ms)") %+%
-#     scale_fill_discrete(guide = "none") %+%
-#     theme_bw(base_size = 10) %+%
-#     theme(panel.spacing = unit(0.2, "inches"),
-#           axis.title = element_text(size = rel(0.8)),
-#           axis.title.x = element_blank(),
-#           axis.title.y = element_text(margin = margin(r = 8)),
-#           strip.background = element_rect(fill = "white"),
-#           strip.text = element_text(size = rel(0.8), margin = margin(t = 3, b = 3)),
-#           legend.title = element_text(size = rel(0.8)))
-#
-# dev.off()
+dev.off()
