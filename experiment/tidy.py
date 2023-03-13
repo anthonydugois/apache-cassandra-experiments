@@ -60,6 +60,8 @@ def tidy(data_path: str, archive: bool):
         "dstat_clients": [],
         "dstat_hosts": [],
         "latency": [],
+        "small_latency": [],
+        "large_latency": [],
         "latency_ts": [],
         "stretch": [],
         "stretch_ts": []
@@ -154,7 +156,7 @@ def tidy(data_path: str, archive: bool):
                     dfs["stretch_ts"].append(ts_df)
 
             # Process Histogram results.
-            latency_dfs, stretch_dfs = [], []
+            latency_dfs, small_latency_dfs, large_latency_dfs, stretch_dfs = [], [], [], []
 
             for _path in _client_path.glob("*.grid5000.fr"):
                 _hist_path = _path / "data"
@@ -163,6 +165,8 @@ def tidy(data_path: str, archive: bool):
                     hist_df = pd.read_csv(_hist_file, skiprows=3, index_col=0)
 
                     latency_dfs.append(hist_df[hist_df.index == "Tag=read.result-success"])
+                    small_latency_dfs.append(hist_df[hist_df.index == "Tag=read.small-latency"])
+                    large_latency_dfs.append(hist_df[hist_df.index == "Tag=read.large-latency"])
                     stretch_dfs.append(hist_df[hist_df.index == "Tag=read.stretch"])
 
             latency_hist = HdrHistogram(1_000, 10_000_000_000, 5)
@@ -177,6 +181,32 @@ def tidy(data_path: str, archive: bool):
                         latency_hist.add(decoded_hist)
 
             dfs["latency"].append(summarize_histogram(latency_hist, _id, run_index))
+
+            small_latency_hist = HdrHistogram(1_000, 10_000_000_000, 5)
+
+            with Pool(processes=len(small_latency_dfs)) as pool:
+                aggregate = partial(histogram_aggregator, hist_min=1_000, hist_max=10_000_000_000, hist_digits=5)
+
+                for encoded_hist in pool.map(aggregate, small_latency_dfs):
+                    decoded_hist = HdrHistogram.decode(encoded_hist)
+
+                    if decoded_hist.get_total_count() > 0:
+                        small_latency_hist.add(decoded_hist)
+
+            dfs["small_latency"].append(summarize_histogram(small_latency_hist, _id, run_index))
+
+            large_latency_hist = HdrHistogram(1_000, 10_000_000_000, 5)
+
+            with Pool(processes=len(large_latency_dfs)) as pool:
+                aggregate = partial(histogram_aggregator, hist_min=1_000, hist_max=10_000_000_000, hist_digits=5)
+
+                for encoded_hist in pool.map(aggregate, large_latency_dfs):
+                    decoded_hist = HdrHistogram.decode(encoded_hist)
+
+                    if decoded_hist.get_total_count() > 0:
+                        large_latency_hist.add(decoded_hist)
+
+            dfs["large_latency"].append(summarize_histogram(large_latency_hist, _id, run_index))
 
             stretch_hist = HdrHistogram(1, 10_000_000, 5)
 
