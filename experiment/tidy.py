@@ -63,6 +63,8 @@ def tidy(data_path: str, archive: bool):
         "small_latency": [],
         "large_latency": [],
         "latency_ts": [],
+        "small_latency_ts": [],
+        "large_latency_ts": [],
         "stretch": [],
         "stretch_ts": []
     }
@@ -143,6 +145,28 @@ def tidy(data_path: str, archive: bool):
                     ts_df["host_address"] = _path.name
 
                     dfs["latency_ts"].append(ts_df)
+
+                for _ts_file in _ts_path.glob("**/read.small_latency.csv"):
+                    ts_df = pd.read_csv(_ts_file, index_col=False)
+
+                    ts_df.rename(columns={"t": "epoch"}, inplace=True)
+                    ts_df["time"] = ts_df["epoch"] - ts_df.iloc[0]["epoch"]
+                    ts_df["id"] = _id
+                    ts_df["run"] = run_index
+                    ts_df["host_address"] = _path.name
+
+                    dfs["small_latency_ts"].append(ts_df)
+
+                for _ts_file in _ts_path.glob("**/read.large_latency.csv"):
+                    ts_df = pd.read_csv(_ts_file, index_col=False)
+
+                    ts_df.rename(columns={"t": "epoch"}, inplace=True)
+                    ts_df["time"] = ts_df["epoch"] - ts_df.iloc[0]["epoch"]
+                    ts_df["id"] = _id
+                    ts_df["run"] = run_index
+                    ts_df["host_address"] = _path.name
+
+                    dfs["large_latency_ts"].append(ts_df)
 
                 for _ts_file in _ts_path.glob("**/read.stretch.csv"):
                     ts_df = pd.read_csv(_ts_file, index_col=False)
