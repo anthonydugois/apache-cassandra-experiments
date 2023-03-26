@@ -146,7 +146,7 @@ def tidy(data_path: str, archive: bool):
 
                     dfs["latency_ts"].append(ts_df)
 
-                for _ts_file in _ts_path.glob("**/read.small_latency.csv"):
+                for _ts_file in _ts_path.glob("**/read.small-latency.csv"):
                     ts_df = pd.read_csv(_ts_file, index_col=False)
 
                     ts_df.rename(columns={"t": "epoch"}, inplace=True)
@@ -157,7 +157,7 @@ def tidy(data_path: str, archive: bool):
 
                     dfs["small_latency_ts"].append(ts_df)
 
-                for _ts_file in _ts_path.glob("**/read.large_latency.csv"):
+                for _ts_file in _ts_path.glob("**/read.large-latency.csv"):
                     ts_df = pd.read_csv(_ts_file, index_col=False)
 
                     ts_df.rename(columns={"t": "epoch"}, inplace=True)
