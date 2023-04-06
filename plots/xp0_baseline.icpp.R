@@ -1,0 +1,58 @@
+# id,name,repeat,hosts,rf,read_ratio,write_ratio,keys,ops,duration,rampup_rate_limit,main_rate_limit,warmup_rate_limit,key_dist,key_size,value_size_dist,docker_image,config_file,driver_config_file,workload_config_file,clients,client_threads,cycle_per_stride
+# xp0_1,xp0_low_base,10,15,3,100,0,35000000,,600.0,fixed=10000,fixed=200000,fixed=10000,"ApproximatedZipf(35000000,0.9)",16,"FixedValues(1000,1000,1000,10000,10000,100000)",adugois1/apache-cassandra-base:latest,xp0/cassandra-base.yaml,without-token-map.conf,cql.yaml,5,360,100
+# xp0_2,xp0_low_se,10,15,3,100,0,35000000,,600.0,fixed=10000,fixed=200000,fixed=10000,"ApproximatedZipf(35000000,0.9)",16,"FixedValues(1000,1000,1000,10000,10000,100000)",adugois1/apache-cassandra-se:latest,xp0/cassandra-se.yaml,without-token-map.conf,cql.yaml,5,360,100
+# xp0_3,xp0_high_base,10,15,3,100,0,35000000,,600.0,fixed=10000,fixed=500000,fixed=10000,"ApproximatedZipf(35000000,0.9)",16,"FixedValues(1000,1000,1000,10000,10000,100000)",adugois1/apache-cassandra-base:latest,xp0/cassandra-base.yaml,without-token-map.conf,cql.yaml,5,360,100
+# xp0_4,xp0_high_se,10,15,3,100,0,35000000,,600.0,fixed=10000,fixed=500000,fixed=10000,"ApproximatedZipf(35000000,0.9)",16,"FixedValues(1000,1000,1000,10000,10000,100000)",adugois1/apache-cassandra-se:latest,xp0/cassandra-se.yaml,without-token-map.conf,cql.yaml,5,360,100
+
+source("plots/common.R")
+
+df <- read_all_csv("archives/xp0_baseline.2023-01-24T17:14:14-light")
+
+data.latency <- df$latency %>%
+    group_by(id, stat_name) %>%
+    summarise_mean(stat_value)
+
+format_data <- function(.data) {
+    stats.levels <- c("mean", "p50", "p95.0", "p99.0")
+    stats.labels <- c("Mean", "Median", "P95", "P99")
+
+    config.levels <- c("xp0/cassandra-base.yaml", "xp0/cassandra-se.yaml")
+    config.labels <- c("Vanilla", "Hector")
+
+    rate.levels <- c("fixed=200000", "fixed=500000")
+    rate.labels <- c("200 Kops/s", "500 Kops/s")
+
+    .data %>%
+        inner_join(df$input, by = "id") %>%
+        filter(stat_name %in% stats.levels) %>%
+        mutate(stat_name = factor(stat_name, levels = stats.levels, labels = stats.labels),
+               config_file = factor(config_file, levels = config.levels, labels = config.labels),
+               main_rate_limit = factor(main_rate_limit, levels = rate.levels, labels = rate.labels))
+}
+
+tikz(file = "plots/output/xp0_latency.icpp.tex", width = 3.5, height = 1.75)
+
+plot.xp0.latency <- ggplot(data = format_data(data.latency)) +
+    geom_col(mapping = aes(x = config_file,
+                           y = mean_stat_value * NANOS_TO_MILLIS,
+                           fill = config_file),
+             width = 0.6,
+             colour = "black") +
+    geom_errorbar(mapping = aes(x = config_file,
+                                ymin = mean_low_stat_value * NANOS_TO_MILLIS,
+                                ymax = mean_high_stat_value * NANOS_TO_MILLIS),
+                  width = 0.2) +
+    facet_grid(rows = vars(main_rate_limit),
+               cols = vars(stat_name),
+               scales = "free") +
+    coord_cartesian(ylim = c(0, NA)) +
+    scale_x_discrete(name = "Version") +
+    scale_y_continuous(name = "Latency (ms)") +
+    scale_fill_discrete(name = "Version") +
+    theme_bw() +
+    theme(axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 20, hjust = 0.8, vjust = 1))
+
+update_theme_for_latex(plot.xp0.latency)
+
+dev.off()

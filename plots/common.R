@@ -15,6 +15,8 @@ B_TO_KB <- 1 / 1e3
 B_TO_MB <- 1 / 1e6
 B_TO_GB <- 1 / 1e9
 
+OPSS_TO_KOPSS <- 1 / 1e3
+
 binned <- function(.data, bin_width) {
     floor(.data / bin_width)
 }
@@ -42,7 +44,7 @@ summarise_mean <- function(.data, col) {
                   .groups = "drop")
 }
 
-update_theme <- function(.plot) {
+update_theme_for_latex <- function(.plot) {
     .plot +
         theme(panel.spacing = unit(0.025, "inches"),
               legend.title = element_text(size = rel(0.8)),
