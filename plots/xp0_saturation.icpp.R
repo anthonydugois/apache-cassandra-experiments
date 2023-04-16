@@ -42,7 +42,7 @@ plot.xp0.throughput <- ggplot(data = format_data(data.speed)) +
                   width = 0.2) +
     coord_cartesian(ylim = c(0, NA)) +
     scale_x_discrete(name = "Version") +
-    scale_y_continuous(name = "Throughput (Kops/s)") +
+    scale_y_continuous(name = "Throughput (kops/s)") +
     scale_fill_discrete(name = "Version") +
     theme_bw() +
     theme(axis.title.x = element_blank())

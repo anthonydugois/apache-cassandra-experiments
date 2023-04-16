@@ -20,7 +20,7 @@ format_data <- function(.data) {
     config.labels <- c("Vanilla", "Hector")
 
     rate.levels <- c("fixed=200000", "fixed=500000")
-    rate.labels <- c("200 Kops/s", "500 Kops/s")
+    rate.labels <- c("200 kops/s", "500 kops/s")
 
     .data %>%
         inner_join(df$input, by = "id") %>%

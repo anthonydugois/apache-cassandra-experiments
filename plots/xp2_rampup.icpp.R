@@ -24,6 +24,9 @@ data.latency.large <- df$large_latency %>%
     group_by(id, stat_name) %>%
     summarise_mean(stat_value)
 
+data.latency.type <- bind_rows(data.latency.small %>% mutate(type = "small"),
+                               data.latency.large %>% mutate(type = "large"))
+
 data.speed <- df$latency_ts %>%
     group_by(id, run, host_address) %>%
     summarise(count = max(count), duration = max(time), .groups = "drop") %>%
@@ -32,9 +35,11 @@ data.speed <- df$latency_ts %>%
     group_by(id) %>%
     summarise_mean(speed)
 
+COLOURS <- hue_pal()(2)
+
 format_speed <- function(.data) {
     config.levels <- c("xp2/cassandra-ds-fifo-4.yaml", "xp2/cassandra-ds-rml-4.yaml")
-    config.labels <- c("FIFO", "RML")
+    config.labels <- c("FCFS", "RML")
 
     rates <- seq(30000, 60000, 10000)
     rate.levels <- paste0("fixed=", rates)
@@ -46,25 +51,55 @@ format_speed <- function(.data) {
                main_rate_limit = factor(main_rate_limit, levels = rate.levels, labels = rate.labels))
 }
 
-tikz(file = "plots/output/xp2_throughput.icpp.tex", width = 2.8, height = 1.5)
+tikz(file = "plots/output/xp2_throughput.icpp.tex", width = 2.8, height = 1.6)
 
 plot.xp2.throughput <- ggplot(data = format_speed(data.speed)) +
-    geom_col(mapping = aes(x = main_rate_limit,
-                           y = 1 / mean_speed * OPSS_TO_KOPSS,
-                           fill = config_file),
-             width = 0.6,
-             colour = "black",
-             position = position_dodge2(padding = 0.2)) +
-    geom_errorbar(mapping = aes(x = main_rate_limit,
-                                ymin = 1 / mean_high_speed * OPSS_TO_KOPSS,
-                                ymax = 1 / mean_low_speed * OPSS_TO_KOPSS,
-                                group = config_file),
-                  width = 0.2,
-                  position = position_dodge(width = 0.6)) +
-    coord_cartesian(ylim = c(0, NA)) +
-    scale_x_discrete(name = "Fixed rate (Kops/s)") +
-    scale_y_continuous(name = "Throughput (Kops/s)") +
-    scale_fill_discrete(name = "Strategy") +
+    geom_line(mapping = aes(x = main_rate_limit,
+                            y = 1 / mean_speed * OPSS_TO_KOPSS,
+                            colour = config_file,
+                            group = config_file),
+              size = 0.6,
+              alpha = 0.6) +
+    geom_point(mapping = aes(x = main_rate_limit,
+                             y = 1 / mean_speed * OPSS_TO_KOPSS,
+                             colour = config_file,
+                             shape = config_file),
+               size = 0.6) +
+    annotate(geom = "segment",
+             x = "40",
+             xend = "40",
+             y = -Inf,
+             yend = Inf,
+             linetype = "dashed",
+             colour = COLOURS[[1]],
+             alpha = 0.6) +
+    annotate(geom = "label",
+             x = "40",
+             y = 5,
+             size = 2.2,
+             colour = COLOURS[[1]],
+             label = "FCFS",
+             label.padding = unit(0.1, "lines")) +
+    annotate(geom = "segment",
+             x = "50",
+             xend = "50",
+             y = -Inf,
+             yend = Inf,
+             linetype = "dashed",
+             colour = COLOURS[[2]],
+             alpha = 0.6) +
+    annotate(geom = "label",
+             x = "50",
+             y = 5,
+             size = 2.2,
+             colour = COLOURS[[2]],
+             label = "RML",
+             label.padding = unit(0.1, "lines")) +
+    coord_cartesian(ylim = c(0, 60)) +
+    scale_x_discrete(name = "Arrival rate (kops/s)") +
+    scale_y_continuous(name = "Throughput (kops/s)") +
+    scale_colour_discrete(name = "Strategy") +
+    scale_shape_discrete(name = "Strategy") +
     theme_bw()
 
 update_theme_for_latex(plot.xp2.throughput)
@@ -76,7 +111,7 @@ format_latency <- function(.data) {
     stats.labels <- c("Mean", "Median", "P95", "P99")
 
     config.levels <- c("xp2/cassandra-ds-fifo-4.yaml", "xp2/cassandra-ds-rml-4.yaml")
-    config.labels <- c("FIFO", "RML")
+    config.labels <- c("FCFS", "RML")
 
     rates <- seq(30000, 60000, 10000)
     rate.levels <- paste0("fixed=", rates)
@@ -90,13 +125,14 @@ format_latency <- function(.data) {
                main_rate_limit = factor(main_rate_limit, levels = rate.levels, labels = rate.labels))
 }
 
-tikz(file = "plots/output/xp2_latency.icpp.tex", width = 3.4, height = 2)
+tikz(file = "plots/output/xp2_latency.icpp.tex", width = 3.4, height = 2.1)
 
 plot.xp2.latency <- ggplot(data = format_latency(data.latency)) +
     geom_line(mapping = aes(x = main_rate_limit,
                             y = mean_stat_value * NANOS_TO_MILLIS,
                             colour = config_file,
                             group = config_file),
+              size = 0.6,
               alpha = 0.6) +
     geom_point(mapping = aes(x = main_rate_limit,
                              y = mean_stat_value * NANOS_TO_MILLIS,
@@ -105,12 +141,55 @@ plot.xp2.latency <- ggplot(data = format_latency(data.latency)) +
                size = 0.6) +
     facet_wrap(vars(stat_name), scales = "free_y") +
     coord_cartesian(ylim = c(0, NA)) +
-    scale_x_discrete(name = "Fixed rate (Kops/s)") +
+    scale_x_discrete(name = "Arrival rate (kops/s)") +
     scale_y_continuous(name = "Latency (ms)") +
     scale_colour_discrete(name = "Strategy") +
     scale_shape_discrete(name = "Strategy") +
     theme_bw()
 
 update_theme_for_latex(plot.xp2.latency)
+
+dev.off()
+
+format_small_large <- function(.data) {
+    stats.levels <- c("mean")
+    stats.labels <- c("Mean")
+
+    config.levels <- c("xp2/cassandra-ds-fifo-4.yaml", "xp2/cassandra-ds-rml-4.yaml")
+    config.labels <- c("FCFS", "RML")
+
+    type.levels <- c("large", "small")
+    type.labels <- c("Large", "Small")
+
+    rates <- seq(30000, 60000, 10000)
+    rate.levels <- paste0("fixed=", rates)
+    rate.labels <- paste0(rates * OPSS_TO_KOPSS, " kops/s")
+
+    .data %>%
+        inner_join(df$input, by = "id") %>%
+        filter(stat_name %in% stats.levels, main_rate_limit %in% rate.levels) %>%
+        mutate(stat_name = factor(stat_name, levels = stats.levels, labels = stats.labels),
+               config_file = factor(config_file, levels = config.levels, labels = config.labels),
+               main_rate_limit = factor(main_rate_limit, levels = rate.levels, labels = rate.labels),
+               type = factor(type, levels = type.levels, labels = type.labels))
+}
+
+tikz(file = "plots/output/xp2_small_large.icpp.tex", width = 3.4, height = 1)
+
+plot.xp2.small_large <- ggplot(data = format_small_large(data.latency.type)) +
+    geom_col(mapping = aes(x = config_file,
+                           y = mean_stat_value * NANOS_TO_MILLIS,
+                           fill = type),
+             position = position_fill(),
+             width = 0.6,
+             colour = "black") +
+    facet_wrap(vars(main_rate_limit), ncol = 4) +
+    scale_x_discrete(name = "Strategy") +
+    scale_y_continuous(name = "Relative latency") +
+    scale_fill_discrete(name = "Type") +
+    theme_bw() +
+    theme(axis.title.x = element_blank())
+
+update_theme_for_latex(plot.xp2.small_large)
 
 dev.off()

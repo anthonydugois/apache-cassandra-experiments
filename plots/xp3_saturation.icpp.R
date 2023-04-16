@@ -16,11 +16,15 @@ data.speed <- df$latency_ts %>%
     group_by(id, run) %>%
     summarise(count = sum(count), duration = max(duration), speed = duration / count, .groups = "drop")
 
-data.read <- df$dstat_hosts %>%
+data.read.all <- df$dstat_hosts %>%
     group_by(id, run, host_address) %>%
-    summarise(read = sum(dsk_sda5__read), duration = max(time), rate = read / duration, .groups = "drop") %>%
+    summarise(read = sum(dsk_sda5__read), duration = max(time), rate = read / duration, .groups = "drop")
+
+data.read.mean <- data.read.all %>%
     group_by(id, run) %>%
-    summarise(rate = mean(rate), .groups = "drop")
+    summarise_mean(rate)
+
+RUN_DURATION_MIN <- 10
 
 format_speed <- function(.data) {
     config.levels <- c("xp3/cassandra-ds.yaml", "xp3/cassandra-c3.yaml", "xp3/cassandra-pa.yaml")
@@ -35,22 +39,40 @@ format_speed <- function(.data) {
                key_dist = factor(key_dist, levels = pop.levels, labels = pop.labels))
 }
 
-tikz(file = "plots/output/xp3_throughput.icpp.tex", width = 3, height = 1.5)
+tikz(file = "plots/output/xp3_throughput.icpp.tex", width = 3.25, height = 1.6)
 
 plot.xp3.throughput <- ggplot(data = format_speed(data.speed)) +
-    geom_line(mapping = aes(x = run * 10,
+    geom_line(mapping = aes(x = run * RUN_DURATION_MIN,
                             y = 1 / speed * OPSS_TO_KOPSS,
                             colour = config_file),
+              size = 0.6,
               alpha = 0.6) +
-    geom_point(mapping = aes(x = run * 10,
+    geom_point(mapping = aes(x = run * RUN_DURATION_MIN,
                              y = 1 / speed * OPSS_TO_KOPSS,
                              colour = config_file,
                              shape = config_file),
                size = 0.6) +
+    annotate(geom = "rect",
+             xmin = 0,
+             xmax = RUN_DURATION_MIN,
+             ymin = 0,
+             ymax = Inf,
+             fill = "black",
+             alpha = 0.1) +
+    annotate(geom = "text",
+             x = 0.5 * RUN_DURATION_MIN,
+             y = 625,
+             angle = 90,
+             size = 1.8,
+             colour = "black",
+             alpha = 0.8,
+             label = "N/A") +
     facet_wrap(vars(key_dist)) +
-    coord_cartesian(xlim = c(0, NA), ylim = c(0, NA)) +
+    coord_cartesian(xlim = c(0, NA),
+                    ylim = c(0, NA)) +
     scale_x_continuous(name = "Runtime (min)") +
-    scale_y_continuous(name = "Throughput (Kops/s)") +
+    scale_y_continuous(name = "Throughput (kops/s)",
+                       breaks = seq(0, 1250, 250)) +
     scale_colour_discrete(name = "Strategy") +
     scale_shape_discrete(name = "Strategy") +
     theme_bw()
@@ -72,22 +94,47 @@ format_read <- function(.data) {
                key_dist = factor(key_dist, levels = pop.levels, labels = pop.labels))
 }
 
-tikz(file = "plots/output/xp3_read.icpp.tex", width = 3, height = 1.5)
+tikz(file = "plots/output/xp3_read.icpp.tex", width = 3.25, height = 1.6)
 
-plot.xp3.read <- ggplot(data = format_read(data.read)) +
-    geom_line(mapping = aes(x = run * 10,
+plot.xp3.read <- ggplot(data = format_read(data.read.mean)) +
+    geom_line(data = format_read(data.read.all),
+              mapping = aes(x = run * RUN_DURATION_MIN,
                             y = rate * B_TO_MB,
+                            colour = config_file,
+                            group = interaction(config_file, host_address)),
+              size = 0.2,
+              alpha = 0.15) +
+    geom_line(mapping = aes(x = run * RUN_DURATION_MIN,
+                            y = mean_rate * B_TO_MB,
                             colour = config_file),
+              size = 0.6,
               alpha = 0.6) +
-    geom_point(mapping = aes(x = run * 10,
-                             y = rate * B_TO_MB,
+    geom_point(mapping = aes(x = run * RUN_DURATION_MIN,
+                             y = mean_rate * B_TO_MB,
                              colour = config_file,
                              shape = config_file),
                size = 0.6) +
+    annotate(geom = "rect",
+             xmin = 0,
+             xmax = RUN_DURATION_MIN,
+             ymin = 0,
+             ymax = Inf,
+             fill = "black",
+             alpha = 0.1) +
+    annotate(geom = "text",
+             x = 0.5 * RUN_DURATION_MIN,
+             y = 225,
+             angle = 90,
+             size = 1.8,
+             colour = "black",
+             alpha = 0.8,
+             label = "N/A") +
     facet_wrap(vars(key_dist)) +
-    coord_cartesian(xlim = c(0, NA), ylim = c(0, NA)) +
+    coord_cartesian(xlim = c(0, NA),
+                    ylim = c(0, NA)) +
     scale_x_continuous(name = "Runtime (min)") +
-    scale_y_continuous(name = "Disk-read (MB/s)") +
+    scale_y_continuous(name = "Disk-read (MB/s)",
+                       breaks = seq(0, 450, 100)) +
     scale_colour_discrete(name = "Strategy") +
     scale_shape_discrete(name = "Strategy") +
     theme_bw()
